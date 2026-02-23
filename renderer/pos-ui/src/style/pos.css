@@ -1,0 +1,90 @@
+.pos-root {
+  height: 100vh;
+  background-color: var(--bg-body);
+  color: var(--text-body);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.pos-header {
+  background-color: var(--card-bg);
+  height: 40px;
+}
+
+.pos-lastbill {
+  background: #059669;
+  color: #fff;
+  font-size: 12px;
+}
+
+.pos-actions {
+  background-color: var(--card-bg);
+}
+
+.pos-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.pos-table {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.pos-table table {
+  margin-bottom: 0;
+}
+
+.pos-right {
+  border-left: 1px solid var(--border-color);
+}
+
+.pos-footer {
+  background-color: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+}
+
+.pos-scan {
+  background-color: var(--card-bg);
+  color: var(--text-body);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pos-row {
+  transition: background-color 0.15s;
+  cursor: pointer;
+  background-color: #ffffff;
+}
+
+.pos-row:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.pos-row:hover {
+  background-color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .pos-row {
+  background-color: #1f2937;
+}
+
+[data-theme="dark"] .pos-row:hover {
+  background-color: #374151 !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}

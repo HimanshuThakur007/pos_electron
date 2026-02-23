@@ -1,0 +1,62 @@
+{
+  "name": "desktop-pos",
+  "version": "1.0.0",
+  "description": "Offline First Desktop POS",
+  "main": "electron/main.js",
+  "type": "module",
+  "author": "Your Company",
+  "license": "ISC",
+
+  "scripts": {
+    "renderer": "cd renderer/pos-ui && npm run dev",
+    "renderer:build": "cd renderer/pos-ui && npm run build",
+
+    "electron": "electron .",
+    "app:dev": "concurrently \"npm run renderer\" \"npm run electron\"",
+
+    "build": "npm run renderer:build && electron-builder",
+    "build:win": "npm run renderer:build && electron-builder --win",
+
+    "postinstall": "electron-rebuild"
+  },
+
+  "build": {
+    "appId": "com.yourcompany.desktoppos",
+    "productName": "Desktop POS",
+    "asar": true,
+
+    "directories": {
+      "output": "dist"
+    },
+
+    "files": [
+      "electron/**/*",
+      "renderer/pos-ui/dist/**/*",
+      "package.json"
+    ],
+
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "concurrently": "^8.2.2",
+    "electron": "^40.2.1",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9"
+  },
+
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^17.2.4",
+    "mysql2": "^3.16.3"
+  }
+}

@@ -1,0 +1,86 @@
+:root {
+  --font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --headings-font-weight: 600;
+  --headings-color: #2c3e50;
+  --primary: #0d6efd;
+  --secondary: #6c757d;
+  --success: #198754;
+  --info: #0dcaf0;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --light: #f8f9fa;
+  --dark: #212529;
+  
+  /* Default Theme (Light) */
+  --bg-body: #f8f9fa;
+  --text-body: #212529;
+  --card-bg: #ffffff;
+  --card-text: #212529;
+  --border-color: #dee2e6;
+}
+
+/* Dark Theme Overrides */
+[data-theme="dark"] {
+  --bg-body: #212529;
+  --text-body: #f8f9fa;
+  --card-bg: #343a40;
+  --card-text: #f8f9fa;
+  --border-color: #495057;
+}
+
+body {
+  font-family: var(--font-family-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-weight: var(--headings-font-weight);
+  line-height: 1.2;
+  color: var(--headings-color);
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+h5 { font-size: 1.25rem; }
+h6 { font-size: 1rem; }
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* Optional: Custom Scrollbar for a cleaner desktop app look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Remove up/down arrows from number inputs */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

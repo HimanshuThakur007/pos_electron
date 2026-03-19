@@ -1,5 +1,11 @@
 import React, { useEffect, useRef } from "react";
-import { MdSearch, MdClose, MdReceiptLong } from "react-icons/md";
+import {
+  MdSearch,
+  MdClose,
+  MdReceiptLong,
+  MdDeleteOutline,
+  MdShoppingCart,
+} from "react-icons/md";
 import {
   type CartItem,
   getSchemeColor,
@@ -92,125 +98,94 @@ export default function PosCartTable({
   };
 
   return (
-    <div className="col-9 p-2">
-      <style>{`
-        .pos-selected-row > td {
-          background-color: ${theme === "dark" ? "#374151" : "#e0e7ff"} !important;
-          color: ${theme === "dark" ? "#fff" : "#3730a3"};
-        }
-        .pos-selected-row > td:first-child {
-          box-shadow: inset 4px 0 0 ${theme === "dark" ? "#60a5fa" : "#4f46e5"};
-        }
-        .pos-row:focus {
-          outline: 2px solid ${theme === "dark" ? "#60a5fa" : "#4f46e5"};
-        }
-      `}</style>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div className="input-group shadow-sm" style={{ width: "50%" }}>
+    <div className="w-3/4 p-2 flex flex-col h-full">
+      <div className="flex justify-between items-start mb-3 gap-3">
+        <div className="relative" style={{ width: "50%" }}>
           <span
-            className={`input-group-text ${theme === "dark" ? "bg-dark text-secondary border-secondary" : "bg-white text-muted"}`}
-            style={{ borderRight: 0 }}
+            className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
           >
-            <MdSearch size={18} />
+            <MdSearch size={20} />
           </span>
           <input
             ref={scanInputRef}
-            className={`form-control ${theme === "dark" ? "bg-dark text-light border-secondary" : "bg-white text-dark"}`}
-            placeholder="Scan barcode / Search product"
+            className={`w-full h-11 rounded-lg border pl-11 pr-36 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm ${theme === "dark" ? "bg-gray-800 text-white border-gray-700 placeholder:text-gray-500" : "bg-white text-gray-900 border-gray-300 placeholder:text-gray-400"}`}
+            placeholder="Scan barcode or search product..."
             autoFocus
             disabled={loading}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={handleInputKeyDown}
-            style={{
-              borderLeft: 0,
-              borderRight: searchTerm ? 0 : undefined,
-            }}
           />
-          {searchTerm && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchTerm && (
+              <button
+                className={`p-1 rounded-full transition-colors ${theme === "dark" ? "text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:bg-gray-100"}`}
+                onClick={() => {
+                  setSearchTerm("");
+                  scanInputRef.current?.focus();
+                }}
+                type="button"
+              >
+                <MdClose size={18} />
+              </button>
+            )}
             <button
-              className={`btn ${theme === "dark" ? "btn-dark border-secondary text-light" : "bg-white border text-muted"}`}
-              style={{
-                borderLeft: 0,
-                borderColor: theme === "dark" ? "#6c757d" : "#dee2e6",
-              }}
-              onClick={() => {
-                setSearchTerm("");
-                scanInputRef.current?.focus();
-              }}
-              type="button"
+              className="inline-flex items-center gap-x-1.5 rounded-md px-4 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:z-10 disabled:opacity-50 shadow-sm"
+              onClick={searchProduct}
+              disabled={loading}
             >
-              <MdClose size={18} />
+              {loading ? "..." : "Search"}
             </button>
-          )}
-          <button
-            className="btn btn-primary px-4 fw-semibold"
-            onClick={searchProduct}
-            disabled={loading}
-          >
-            {loading ? "..." : "SEARCH"}
-          </button>
+          </div>
         </div>
         <div
-          className={`d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-sm ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border ${
             theme === "dark"
-              ? "bg-secondary bg-opacity-10 text-light border border-secondary"
-              : "bg-white text-dark border"
+              ? "bg-slate-800 text-white border-slate-700"
+              : "bg-slate-50 text-slate-800 border-slate-200"
           }`}
         >
-          <MdReceiptLong size={20} className="opacity-75" />
-          <span className="font-monospace fw-bold fs-6">{invoiceNumber}</span>
+          <MdReceiptLong
+            size={20}
+            className={`opacity-75 ${theme === "dark" ? "text-indigo-400" : "text-indigo-600"}`}
+          />
+          <span className="font-mono font-bold text-lg">{invoiceNumber}</span>
         </div>
       </div>
 
       <div
-        className="table-responsive pos-table"
-        style={{
-          borderRadius: "12px",
-          boxShadow:
-            "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-          border: theme === "dark" ? "1px solid #374151" : "1px solid #e5e7eb",
-          backgroundColor: theme === "dark" ? "#1f2937" : "#ffffff",
-          height: "calc(100vh - 330px)",
-          overflowY: "auto",
-        }}
+        className={`overflow-y-auto rounded-xl shadow-lg border ${theme === "dark" ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"} h-[calc(100vh-350px)]`}
       >
         <table
-          className={`table mb-0 ${theme === "dark" ? "table-dark" : ""}`}
+          className={`w-full mb-0 ${theme === "dark" ? "text-gray-300" : ""}`}
           style={{ borderCollapse: "separate", borderSpacing: "0" }}
         >
           <thead
             className="sticky-top"
             style={{
               zIndex: 10,
-              backgroundColor: theme === "dark" ? "#111827" : "#f9fafb",
+              backgroundColor:
+                theme === "dark"
+                  ? "#111827" /* bg-gray-900 */
+                  : "#f9fafb" /* bg-gray-50 */,
             }}
           >
             <tr>
               {[
-                { label: "#", width: "5%", align: "center" },
-                { label: "PRODUCT", width: "35%", align: "start" },
+                { label: "", width: "4%", align: "center" },
+                { label: "PRODUCT", width: "36%", align: "start" },
                 { label: "SCHEME", width: "10%", align: "center" },
-                { label: "STOCK", width: "8%", align: "center" },
+                { label: "STOCK", width: "7%", align: "center" },
                 { label: "QTY", width: "12%", align: "center" },
-                { label: "PRICE", width: "10%", align: "end" },
+                { label: "PRICE", width: "8%", align: "end" },
                 { label: "DISC", width: "8%", align: "end" },
                 { label: "TAX", width: "5%", align: "center" },
-                { label: "TOTAL", width: "10%", align: "end" },
+                { label: "SUBTOTAL", width: "10%", align: "end" },
               ].map((col, idx) => (
                 <th
                   key={idx}
-                  className={`py-2 px-2 text-${col.align} fw-bold ${theme === "dark" ? "text-white" : "text-secondary"}`}
-                  style={{
-                    fontSize: "0.75rem",
-                    letterSpacing: "0.05em",
-                    borderBottom:
-                      theme === "dark"
-                        ? "1px solid #374151"
-                        : "1px solid #e5e7eb",
-                    width: col.width,
-                    backgroundColor: theme === "dark" ? "#111827" : "#f9fafb",
-                  }}
+                  className={`py-2 px-2 text-${col.align} font-bold uppercase text-xs tracking-wider border-b ${theme === "dark" ? "text-gray-400 border-slate-700 bg-slate-900" : "text-gray-500 border-slate-200 bg-gray-50"}`}
+                  style={{ width: col.width }}
                 >
                   {col.label}
                 </th>
@@ -222,244 +197,169 @@ export default function PosCartTable({
               <tr>
                 <td colSpan={9} className="text-center py-5">
                   <div
-                    className={`d-flex flex-column align-items-center ${theme === "dark" ? "text-secondary" : "text-muted"}`}
+                    className={`flex flex-col items-center ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
                   >
-                    <MdSearch size={48} className="mb-3 opacity-25" />
-                    <span className="fs-5 fw-medium">Cart is empty</span>
-                    <span className="small opacity-75">
+                    <MdShoppingCart size={48} className="mb-3 opacity-50" />
+                    <span className="text-lg font-medium">Cart is empty</span>
+                    <span className="text-sm opacity-75">
                       Scan a barcode or search to add items
                     </span>
                   </div>
                 </td>
               </tr>
             ) : (
-              cart.map((item, index) => (
-                <tr
-                  key={index}
-                  ref={(el) => {
-                    rowRefs.current[index] = el;
-                  }}
-                  tabIndex={-1}
-                  className={`pos-row ${selectedIndex === index ? "pos-selected-row" : ""}`}
-                  onClick={() => setSelectedIndex(index)}
-                >
-                  <td
-                    className="align-middle text-center px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
+              cart.map((item, index) => {
+                const isSelected = selectedIndex === index;
+                const rowClass = `
+                  transition-colors duration-150 cursor-pointer text-sm
+                  focus:outline-2 focus:outline-offset-[-2px]
+                  ${theme === "dark" ? "focus:outline-blue-500" : "focus:outline-indigo-500"}
+                  ${isSelected ? (theme === "dark" ? "bg-slate-700/70" : "bg-indigo-50") : index % 2 !== 0 ? (theme === "dark" ? "bg-slate-800/50" : "bg-gray-50/50") : theme === "dark" ? "bg-slate-800" : "bg-white"}
+                  ${!isSelected && (theme === "dark" ? "hover:bg-slate-700/70" : "hover:bg-gray-100")}
+                `;
+
+                return (
+                  <tr
+                    key={index}
+                    ref={(el) => {
+                      rowRefs.current[index] = el;
                     }}
+                    tabIndex={-1}
+                    className={rowClass}
+                    onClick={() => setSelectedIndex(index)}
                   >
-                    <button
-                      className="btn btn-link text-danger p-0 opacity-50 hover-opacity-100 text-decoration-none"
-                      onClick={() => removeFromCart(item.id)}
-                      title="Remove Item"
+                    <td
+                      className={`align-middle text-center px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected ? (theme === "dark" ? "text-white border-l-4 border-blue-500" : "text-indigo-800 border-l-4 border-indigo-500") : "border-l-4 border-transparent"}`}
                     >
-                      <MdClose size={18} />
-                    </button>
-                  </td>
-                  <td
-                    className="align-middle px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div className="d-flex flex-column">
-                      <span
-                        className="fw-semibold text-truncate"
-                        style={{ maxWidth: "280px" }}
+                      <button
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        onClick={() => removeFromCart(item.id)}
+                        title="Remove Item"
                       >
-                        {item.itemName}
-                      </span>
-                      <div className="d-flex align-items-center gap-2 mt-1">
+                        <MdDeleteOutline size={18} />
+                      </button>
+                    </td>
+                    <td
+                      className={`align-middle px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      <div className="flex flex-col">
                         <span
-                          className={`badge rounded-pill ${theme === "dark" ? "bg-secondary bg-opacity-25 text-light" : "bg-light text-secondary border"}`}
-                          style={{ fontSize: "0.65rem", fontWeight: 500 }}
+                          className="font-semibold truncate"
+                          style={{ maxWidth: "280px" }}
                         >
-                          {item.itemCode}
+                          {item.itemName}
                         </span>
-                        {item.printDesc && (
+                        <div className="flex items-center gap-2 mt-1">
                           <span
-                            className="small opacity-75"
-                            style={{ fontSize: "0.7rem" }}
+                            className={`px-2 py-0.5 text-xs font-medium rounded-full ${theme === "dark" ? "bg-slate-700 text-gray-300" : "bg-gray-100 text-gray-600 border"}`}
                           >
-                            {item.printDesc}
+                            {item.itemCode}
                           </span>
-                        )}
-                        {getDisplayScheme(item) !== "-" && (
-                          <span
-                            className={`small ${getSchemeColor(item)}`}
-                            style={{ fontSize: "0.7rem" }}
-                          >
-                            {getDisplayScheme(item)}
-                          </span>
-                        )}
-                      </div>
-                      {item.missingQualifyingAmount &&
-                        item.missingQualifyingAmount > 0 && (
-                          <div
-                            className="text-warning mt-1 d-flex align-items-center gap-1"
-                            style={{ fontSize: "0.7rem" }}
-                          >
-                            <span>
-                              ⚠️ Add ₹{item.missingQualifyingAmount.toFixed(2)}{" "}
-                              more for offer
+                          {item.printDesc && (
+                            <span className="text-xs opacity-75">
+                              {item.printDesc}
                             </span>
-                          </div>
-                        )}
-                    </div>
-                  </td>
-                  <td
-                    className="align-middle text-center px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    <span
-                      className={`badge rounded-pill ${
-                        getSchemeColor(
-                          item,
-                          //   grossAmount,
-                          //   totalPPAmount,
-                        ).includes("text-success")
-                          ? "bg-success bg-opacity-10 text-success"
-                          : getSchemeColor(
-                                item,
-                                // grossAmount,
-                                // totalPPAmount,
-                              ).includes("text-danger")
-                            ? "bg-danger bg-opacity-10 text-danger"
-                            : "bg-secondary bg-opacity-10 text-secondary"
-                      }`}
-                      style={{ fontSize: "0.7rem" }}
+                          )}
+                          {getDisplayScheme(item) !== "-" && (
+                            <span className={`text-xs ${getSchemeColor(item)}`}>
+                              {getDisplayScheme(item)}
+                            </span>
+                          )}
+                        </div>
+                        {item.missingQualifyingAmount &&
+                          item.missingQualifyingAmount > 0 && (
+                            <div className="text-yellow-500 mt-1 flex items-center gap-1 text-xs">
+                              <span>
+                                ⚠️ Add ₹
+                                {item.missingQualifyingAmount.toFixed(2)} more
+                                for offer
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                    </td>
+                    <td
+                      className={`align-middle text-center px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
                     >
-                      {getDisplayScheme(item)}
-                    </span>
-                  </td>
-                  <td
-                    className="align-middle text-center px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    <span
-                      className={`fw-medium ${item.stock < 5 ? "text-danger" : ""}`}
-                    >
-                      {item.stock}
-                    </span>
-                  </td>
-                  <td
-                    className="align-middle text-center px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div
-                      className={`d-flex align-items-center justify-content-between rounded-pill border ${theme === "dark" ? "border-secondary bg-dark" : "border-200 bg-white"}`}
-                      style={{ width: "100px", padding: "2px" }}
-                    >
-                      <button
-                        className={`btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center ${theme === "dark" ? "text-light" : "text-secondary"}`}
-                        style={{ width: "24px", height: "24px" }}
-                        onClick={() => updateQty(item.id, -1)}
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        className={`form-control form-control-sm border-0 text-center p-0 fw-bold ${theme === "dark" ? "bg-transparent text-light" : "bg-transparent text-dark"}`}
-                        style={{
-                          width: "40px",
-                          boxShadow: "none",
-                          fontSize: "0.9rem",
-                        }}
-                        value={item.qty === 0 ? "" : item.qty}
-                        onChange={(e) =>
-                          handleQtyChange(item.id, e.target.value)
-                        }
-                        onBlur={() => handleQtyBlur(item.id, item.qty)}
-                      />
-                      <button
-                        className={`btn btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center ${theme === "dark" ? "text-light" : "text-secondary"}`}
-                        style={{ width: "24px", height: "24px" }}
-                        onClick={() => updateQty(item.id, 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </td>
-                  <td
-                    className="align-middle text-end px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    ₹{item.price.toFixed(2)}
-                  </td>
-                  <td
-                    className="align-middle text-end px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    {item.discount > 0 ? (
-                      <span className="text-success fw-medium">
-                        -₹{(item.discount * item.qty).toFixed(2)}
+                      <span className={`text-xs ${getSchemeColor(item)}`}>
+                        {getDisplayScheme(item)}
                       </span>
-                    ) : (
-                      <span className="opacity-25">-</span>
-                    )}
-                  </td>
-                  <td
-                    className="align-middle text-center px-2 py-2"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                    }}
-                  >
-                    <span
-                      className={`badge ${theme === "dark" ? "bg-secondary bg-opacity-25 text-light" : "bg-secondary bg-opacity-10 text-secondary"}`}
-                      style={{ fontSize: "0.7rem" }}
+                    </td>
+                    <td
+                      className={`align-middle text-center px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
                     >
-                      {item.tax}%
-                    </span>
-                  </td>
-                  <td
-                    className="align-middle text-end px-2 py-2 fw-bold"
-                    style={{
-                      borderBottom:
-                        theme === "dark"
-                          ? "1px solid #374151"
-                          : "1px solid #e5e7eb",
-                      fontSize: "1rem",
-                    }}
-                  >
-                    ₹{((item.price - item.discount) * item.qty).toFixed(2)}
-                  </td>
-                </tr>
-              ))
+                      <span
+                        className={`font-medium ${item.stock < 5 ? "text-red-500" : ""}`}
+                      >
+                        {item.stock}
+                      </span>
+                    </td>
+                    <td
+                      className={`align-middle text-center px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      <div
+                        className={`flex items-center justify-between rounded-md border ${theme === "dark" ? "border-gray-600 bg-gray-900/50" : "border-gray-200 bg-white"}`}
+                        style={{ width: "100px", padding: "2px" }}
+                      >
+                        <button
+                          className={`flex items-center justify-center w-6 h-6 p-0 rounded-md transition-colors ${theme === "dark" ? "text-gray-300 hover:bg-gray-700" : "text-gray-600 hover:bg-gray-100"}`}
+                          onClick={() => updateQty(item.id, -1)}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          className={`w-10 p-0 text-center bg-transparent border-0 font-bold focus:ring-0 ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+                          style={{
+                            boxShadow: "none",
+                          }}
+                          value={item.qty === 0 ? "" : item.qty}
+                          onChange={(e) =>
+                            handleQtyChange(item.id, e.target.value)
+                          }
+                          onBlur={() => handleQtyBlur(item.id, item.qty)}
+                        />
+                        <button
+                          className={`flex items-center justify-center w-6 h-6 p-0 rounded-md transition-colors ${theme === "dark" ? "text-gray-300 hover:bg-gray-700" : "text-gray-600 hover:bg-gray-100"}`}
+                          onClick={() => updateQty(item.id, 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </td>
+                    <td
+                      className={`align-middle text-end px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      ₹{item.price.toFixed(2)}
+                    </td>
+                    <td
+                      className={`align-middle text-end px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      {item.discount > 0 ? (
+                        <span className="text-green-500 font-medium">
+                          -₹{(item.discount * item.qty).toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="opacity-25">-</span>
+                      )}
+                    </td>
+                    <td
+                      className={`align-middle text-center px-2 py-1 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      <span
+                        className={`px-2 py-1 text-xs rounded ${theme === "dark" ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                      >
+                        {item.tax}%
+                      </span>
+                    </td>
+                    <td
+                      className={`align-middle text-end px-2 py-1 font-bold text-sm border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${isSelected && (theme === "dark" ? "text-white" : "text-indigo-800")}`}
+                    >
+                      ₹{((item.price - item.discount) * item.qty).toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

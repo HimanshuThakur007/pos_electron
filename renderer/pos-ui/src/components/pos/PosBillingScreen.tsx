@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import "../../style/pos.css";
+import SettingsModal from "./SettingsModal";
 import ProductSelectionModal from "./ProductSelectionModal";
 import PosShortcutsModal from "./PosShortcutsModal";
 import Calculator from "../calculator/Calculator";
@@ -11,10 +12,13 @@ import PosCartTable from "./PosCartTable";
 import PosPaymentPanel from "./PosPaymentPanel";
 import PosFooter from "./PosFooter";
 import CustomerFacingDisplay from "./CustomerFacingDisplay";
-import PosPrintReceipt from "./PosPrintReceipt";
+// import PosPrintReceipt from "./PosPrintReceipt";
 import TransactionsModal from "./TransactionsModal";
 import HeldSalesModal from "./HoldSalesModal";
 import HoldNoteModal from "./HoldNoteModal";
+import ReprintModal from "./ReprintModal";
+import ClassicPOSLayout from "../classic/ClassicPOSLayout";
+import "../../style/pos.css";
 
 interface PosBillingScreenProps {
   onLogout?: () => void;
@@ -42,7 +46,7 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
     toggleTheme,
     // addToCart,
     removeFromCart,
-    // clearCart,
+    clearCart,
     updateQty,
     handleQtyChange,
     handleQtyBlur,
@@ -54,11 +58,14 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
     qtyFocusTrigger,
     isOnline,
     syncStatus,
+    netOffline,
+    manualMode,
+    setManualMode,
     // New exports from hook
     customerWindow,
     showReprintModal,
     setShowReprintModal,
-    receiptRef,
+    // receiptRef,
     lastBill,
     handleProductSelect,
     handleCloseSearchResults,
@@ -66,14 +73,17 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
     handleCloseCalculator,
     openCustomerDisplay,
     handleReprint,
-    handlePrintReceipt,
+    handleReprintBill,
+    reprintTransactions,
+    // handlePrintReceipt,
     showTransactions,
     setShowTransactions,
     transactions,
     handleShowTransactions,
     generateInvoiceNumber,
     handleSaveBill,
-    lastBillData,
+    // lastBillData,
+    handleSyncTransaction,
     handleHoldSale,
     showHeldSales,
     setShowHeldSales,
@@ -95,9 +105,121 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
     totalPPAmount,
   } = usePosLogic(onLogout);
 
+  const [uiVariant, setUiVariant] = useState("classic");
+  const [printFormat, setPrintFormat] = useState("print1");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // --- CONDITIONAL RENDER: CLASSIC LAYOUT ---
+  if (uiVariant === "classic") {
+    return (
+      <>
+        <ClassicPOSLayout
+          userDetails={userDetails}
+          currentTime={currentTime}
+          onLogout={onLogout}
+          uiVariant={uiVariant}
+          changeUIVariant={setUiVariant}
+          printFormat={printFormat}
+          changePrintFormat={setPrintFormat}
+          isOnline={isOnline}
+          syncStatus={syncStatus}
+          netOffline={netOffline}
+          manualMode={manualMode}
+          setManualMode={setManualMode}
+          cart={cart}
+          scanInputRef={scanInputRef}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          handleScan={handleScan}
+          searchProduct={searchProduct}
+          invoiceNumber={generateInvoiceNumber()}
+          removeFromCart={removeFromCart}
+          updateQty={updateQty}
+          handleQtyChange={handleQtyChange}
+          handleQtyBlur={handleQtyBlur}
+          totalQty={totalQty}
+          grossAmount={grossAmount}
+          totalDiscount={totalDiscount}
+          taxableValue={taxableValue}
+          totalTax={totalTax}
+          grandTotal={grandTotal}
+          roundedGrandTotal={roundedGrandTotal}
+          roundOff={roundOff}
+          handleSaveBill={handleSaveBill}
+          handleHoldSale={(note) => handleHoldSale(note)}
+          handleReprint={handleReprint}
+          handleShowTransactions={handleShowTransactions}
+          handleShowHeldSales={handleShowHeldSales}
+          setShowShortcuts={setShowShortcuts}
+          lastBill={lastBill}
+          qtyFocusTrigger={qtyFocusTrigger}
+          selectedIndex={selectedIndex}
+          setSelectedIndex={setSelectedIndex}
+          tableFocusTrigger={tableFocusTrigger}
+        />
+        {/* Modals that are shared across layouts */}
+        <ProductSelectionModal
+          show={searchResults.length > 0}
+          products={searchResults}
+          theme={theme}
+          onClose={handleCloseSearchResults}
+          onSelect={handleProductSelect}
+        />
+        <TransactionsModal
+          show={showTransactions}
+          onClose={() => setShowTransactions(false)}
+          transactions={transactions}
+          theme={theme}
+          onSync={handleSyncTransaction}
+        />
+        <HoldNoteModal
+          show={showHoldNoteModal}
+          onClose={() => setShowHoldNoteModal(false)}
+          onConfirm={(note) => {
+            handleHoldSale(note);
+            setShowHoldNoteModal(false);
+          }}
+          theme={theme}
+        />
+        <HeldSalesModal
+          show={showHeldSales}
+          onClose={() => setShowHeldSales(false)}
+          heldSales={heldSales}
+          onResume={(sale) => {
+            handleResumeHeldSale(sale);
+            setShowHeldSales(false);
+          }}
+          theme={theme}
+        />
+        <ReprintModal
+          show={showReprintModal}
+          onClose={() => setShowReprintModal(false)}
+          transactions={reprintTransactions}
+          theme={theme}
+          onPrint={handleReprintBill}
+        />
+        <PosShortcutsModal
+          show={showShortcuts}
+          onClose={handleCloseShortcuts}
+        />
+        {/* CALCULATOR */}
+        <Calculator show={showCalculator} onClose={handleCloseCalculator} />
+        <SettingsModal
+          show={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          uiVariant={uiVariant}
+          changeUIVariant={setUiVariant}
+          printFormat={printFormat}
+          changePrintFormat={setPrintFormat}
+          returnFocusRef={scanInputRef as React.RefObject<HTMLElement>}
+        />
+      </>
+    );
+  }
+
   return (
     <div
-      className={`pos-root ${theme === "dark" ? "bg-dark text-light" : "bg-white text-dark"}`}
+      className={`min-h-screen flex flex-col ${theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-gray-900"}`}
       data-theme={theme}
     >
       {/* HEADER */}
@@ -107,6 +229,7 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
         theme={theme}
         toggleTheme={toggleTheme}
         onLogout={onLogout}
+        onOpenSettings={() => setShowSettingsModal(true)}
       />
 
       {/* LAST BILL BAR */}
@@ -127,11 +250,12 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
         onShowTransactions={handleShowTransactions}
         onHoldSale={() => setShowHoldNoteModal(true)}
         onShowHeldSales={handleShowHeldSales}
+        onNewSale={clearCart}
       />
 
       {/* MAIN CONTENT */}
-      <div className="container-fluid pos-body">
-        <div className="row h-100">
+      <div className="flex-1 flex flex-col w-full overflow-hidden p-2">
+        <div className="flex h-full gap-2">
           {/* LEFT - BILL TABLE */}
           <PosCartTable
             theme={theme}
@@ -192,6 +316,7 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
         onClose={() => setShowTransactions(false)}
         transactions={transactions}
         theme={theme}
+        onSync={handleSyncTransaction}
       />
 
       <HoldNoteModal
@@ -236,49 +361,24 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
         )}
 
       {/* REPRINT MODAL */}
-      {showReprintModal && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-          style={{ zIndex: 2000, backgroundColor: "rgba(0,0,0,0.5)" }}
-          onClick={() => setShowReprintModal(false)}
-        >
-          <div
-            className={`p-4 rounded-3 shadow-lg ${theme === "dark" ? "bg-dark text-light" : "bg-white"}`}
-            style={{ maxWidth: "400px", width: "100%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="mb-0 fw-bold">Reprint Last Bill</h5>
-              <button
-                className={`btn-close ${theme === "dark" ? "btn-close-white" : ""}`}
-                onClick={() => setShowReprintModal(false)}
-              ></button>
-            </div>
+      <ReprintModal
+        show={showReprintModal}
+        onClose={() => setShowReprintModal(false)}
+        transactions={reprintTransactions}
+        theme={theme}
+        onPrint={handleReprintBill}
+      />
 
-            <div
-              className="border p-2 mb-3 overflow-auto"
-              style={{ maxHeight: "400px", background: "white" }}
-            >
-              <PosPrintReceipt ref={receiptRef} {...lastBillData} />
-            </div>
-
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-primary flex-grow-1"
-                onClick={handlePrintReceipt}
-              >
-                Print
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowReprintModal(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* SETTINGS MODAL */}
+      <SettingsModal
+        show={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        uiVariant={uiVariant}
+        changeUIVariant={setUiVariant}
+        printFormat={printFormat}
+        changePrintFormat={setPrintFormat}
+        returnFocusRef={scanInputRef as React.RefObject<HTMLElement>}
+      />
     </div>
   );
 }

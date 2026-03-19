@@ -5,6 +5,7 @@ import { getLastSyncLogSqlite, clearStockSqlite, clearSyncLogsSqlite } from "../
 import { getItemCountSqlite } from "../repositories/item.sqlite.repo.js";
 import { clearTransactionsSqlite } from "../repositories/transaction.sqlite.repo.js";
 import { clearInvoicesSqlite } from "../repositories/invoice.sqlite.repo.js";
+import { saveLoginSession } from "../repositories/session.sqlite.repo.js";
 import { triggerSync } from "../services/backgroundSync.js";
 
 ipcMain.handle("check-db-connection", async () => {
@@ -30,5 +31,11 @@ ipcMain.handle("reset-database", async (_, fy_code) => {
 
 ipcMain.handle("trigger-background-sync", (_, fy_code) => {
   triggerSync(fy_code);
+  return { status: "success" };
+});
+
+ipcMain.handle("set-login-details", (_, details) => {
+  console.log("💾 Saving Login Details via IPC:", details);
+  saveLoginSession(details);
   return { status: "success" };
 });

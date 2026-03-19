@@ -212,172 +212,150 @@ const Calculator: React.FC<CalculatorProps> = ({ onClose, show }) => {
   return (
     <div
       ref={calcRef}
-      className="position-fixed shadow-lg rounded-4 bg-white border"
+      className="fixed shadow-2xl rounded-2xl bg-white border border-gray-200 overflow-hidden"
       style={{
         top: `${position.y}px`,
         left: `${position.x}px`,
-        width: "330px",
+        width: "320px",
         zIndex: 1050,
       }}
     >
       {/* Header */}
       <div
-        className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light rounded-top"
+        className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-gray-50 select-none"
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
         onMouseDown={onMouseDown}
       >
-        <span className="fw-bold text-uppercase small text-secondary">
+        <span className="font-bold uppercase text-xs tracking-wider text-gray-500">
           Calculator
         </span>
-        <button className="btn btn-sm btn-link p-0" onClick={onClose}>
+        <button
+          className="text-gray-400 hover:text-gray-600 transition p-1 rounded-md hover:bg-gray-200"
+          onClick={onClose}
+        >
           <RxCross2 size={18} />
         </button>
       </div>
 
       {/* Display */}
-      <div className="p-3 text-end bg-light border-bottom">
-        <div className="text-muted small" style={{ minHeight: "18px" }}>
+      <div className="p-4 text-right bg-gray-50/50 border-b border-gray-100">
+        <div className="text-gray-400 text-sm h-6 font-medium">
           {previousOperand} {operation}
         </div>
-        <div className="fs-2 fw-bold text-dark text-break">
+        <div className="text-4xl font-bold text-gray-800 break-all tracking-tight">
           {currentOperand}
         </div>
       </div>
 
       {/* Buttons */}
-      <div className="p-2">
-        <div className="row g-2">
+      <div className="p-3 bg-white">
+        <div className="grid grid-cols-4 gap-2">
           {/* Top Row */}
-          <div className="col-3">
-            <button
-              className="btn btn-danger w-100 py-3 fw-bold"
-              onClick={clear}
-            >
-              AC
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-lg bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+            onClick={clear}
+          >
+            AC
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-light w-100 py-3 fw-bold"
-              onClick={deleteNumber}
-            >
-              <MdOutlineDelete size={18} />
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition active:scale-95 flex items-center justify-center"
+            onClick={deleteNumber}
+          >
+            <MdOutlineDelete size={22} />
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-light w-100 py-3 fw-bold"
-              onClick={percentage}
-            >
-              %
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition active:scale-95"
+            onClick={percentage}
+          >
+            %
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-warning w-100 py-3 fw-bold"
-              onClick={() => chooseOperation("/")}
-            >
-              ÷
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-amber-100 text-amber-600 hover:bg-amber-200 transition active:scale-95"
+            onClick={() => chooseOperation("/")}
+          >
+            ÷
+          </button>
 
           {/* Numbers */}
           {["7", "8", "9"].map((n) => (
-            <div key={n} className="col-3">
-              <button
-                className="btn btn-outline-dark w-100 py-3 fw-bold"
-                onClick={() => appendNumber(n)}
-              >
-                {n}
-              </button>
-            </div>
-          ))}
-          <div className="col-3">
             <button
-              className="btn btn-warning w-100 py-3 fw-bold"
-              onClick={() => chooseOperation("*")}
+              key={n}
+              className="h-14 rounded-xl font-bold text-xl text-gray-700 hover:bg-gray-50 border border-gray-100 transition active:scale-95"
+              onClick={() => appendNumber(n)}
             >
-              ×
+              {n}
             </button>
-          </div>
+          ))}
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-amber-100 text-amber-600 hover:bg-amber-200 transition active:scale-95"
+            onClick={() => chooseOperation("*")}
+          >
+            ×
+          </button>
 
           {["4", "5", "6"].map((n) => (
-            <div key={n} className="col-3">
-              <button
-                className="btn btn-outline-dark w-100 py-3 fw-bold"
-                onClick={() => appendNumber(n)}
-              >
-                {n}
-              </button>
-            </div>
-          ))}
-          <div className="col-3">
             <button
-              className="btn btn-warning w-100 py-3 fw-bold"
-              onClick={() => chooseOperation("-")}
+              key={n}
+              className="h-14 rounded-xl font-bold text-xl text-gray-700 hover:bg-gray-50 border border-gray-100 transition active:scale-95"
+              onClick={() => appendNumber(n)}
             >
-              −
+              {n}
             </button>
-          </div>
+          ))}
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-amber-100 text-amber-600 hover:bg-amber-200 transition active:scale-95"
+            onClick={() => chooseOperation("-")}
+          >
+            −
+          </button>
 
           {["1", "2", "3"].map((n) => (
-            <div key={n} className="col-3">
-              <button
-                className="btn btn-outline-dark w-100 py-3 fw-bold"
-                onClick={() => appendNumber(n)}
-              >
-                {n}
-              </button>
-            </div>
-          ))}
-          <div className="col-3">
             <button
-              className="btn btn-warning w-100 py-3 fw-bold"
-              onClick={() => chooseOperation("+")}
+              key={n}
+              className="h-14 rounded-xl font-bold text-xl text-gray-700 hover:bg-gray-50 border border-gray-100 transition active:scale-95"
+              onClick={() => appendNumber(n)}
             >
-              +
+              {n}
             </button>
-          </div>
+          ))}
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-amber-100 text-amber-600 hover:bg-amber-200 transition active:scale-95"
+            onClick={() => chooseOperation("+")}
+          >
+            +
+          </button>
 
           {/* Last Row */}
-          <div className="col-3">
-            <button
-              className="btn btn-light w-100 py-3 fw-bold"
-              onClick={toggleSign}
-            >
-              ±
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition active:scale-95"
+            onClick={toggleSign}
+          >
+            ±
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-outline-dark w-100 py-3 fw-bold"
-              onClick={() => appendNumber("0")}
-            >
-              0
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-xl text-gray-700 hover:bg-gray-50 border border-gray-100 transition active:scale-95"
+            onClick={() => appendNumber("0")}
+          >
+            0
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-outline-dark w-100 py-3 fw-bold"
-              onClick={() => appendNumber(".")}
-            >
-              .
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-xl text-gray-700 hover:bg-gray-50 border border-gray-100 transition active:scale-95"
+            onClick={() => appendNumber(".")}
+          >
+            .
+          </button>
 
-          <div className="col-3">
-            <button
-              className="btn btn-primary w-100 py-3 fw-bold"
-              onClick={compute}
-            >
-              =
-            </button>
-          </div>
+          <button
+            className="h-14 rounded-xl font-bold text-xl bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 transition active:scale-95"
+            onClick={compute}
+          >
+            =
+          </button>
         </div>
       </div>
     </div>

@@ -59,34 +59,34 @@ export default function PosPaymentPanel({
   };
 
   return (
-    <div className="col-3 p-2 pos-right d-flex flex-column gap-3">
+    <div className="w-1/4 p-2 flex flex-col gap-3 border-l border-gray-200">
       {/* Customer Search Card */}
       <div
-        className={`card shadow-sm ${isDark ? "bg-dark text-light border-secondary" : "bg-white text-dark border"}`}
+        className={`rounded-lg shadow-sm border ${isDark ? "bg-gray-800 text-white border-gray-700" : "bg-white text-gray-900 border-gray-200"}`}
       >
-        <div className="card-body p-3">
-          <div className="d-flex justify-content-between align-items-center mb-2">
+        <div className="p-3">
+          <div className="flex justify-between items-center mb-2">
             <h6
-              className={`fw-bold mb-0 ${isDark ? "text-white" : "text-primary"}`}
+              className={`font-bold mb-0 ${isDark ? "text-white" : "text-blue-600"}`}
             >
               Customer
             </h6>
             <button
-              className={`btn btn-sm btn-icon rounded-circle ${isDark ? "btn-outline-light" : "btn-outline-primary"}`}
+              className={`p-1 rounded-full border transition-colors ${isDark ? "border-gray-500 text-gray-300 hover:bg-gray-700 hover:text-white" : "border-blue-200 text-blue-600 hover:bg-blue-50"}`}
               title="Add New Customer"
             >
               <MdPersonAdd size={16} />
             </button>
           </div>
-          <div className="input-group">
+          <div className="flex rounded-md shadow-sm">
             <span
-              className={`input-group-text ${isDark ? "bg-secondary bg-opacity-25 border-secondary text-light" : "bg-light border"}`}
+              className={`inline-flex items-center px-3 rounded-l-md border border-r-0 ${isDark ? "bg-gray-700 border-gray-600 text-gray-300" : "bg-gray-50 border-gray-300 text-gray-500"}`}
             >
               <MdSearch size={18} />
             </span>
             <input
               type="text"
-              className={`form-control ${isDark ? "bg-dark text-light border-secondary" : "bg-white text-dark"}`}
+              className={`flex-1 block w-full px-3 py-2 rounded-r-md border focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${isDark ? "bg-gray-900 text-white border-gray-600 placeholder-gray-500" : "bg-white text-gray-900 border-gray-300 placeholder-gray-400"}`}
               placeholder="Search Name / Mobile"
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
@@ -97,62 +97,62 @@ export default function PosPaymentPanel({
 
       {/* Quick Pay Card */}
       <div
-        className={`card shadow-sm ${isDark ? "bg-dark text-light border-secondary" : "bg-white text-dark border"}`}
+        className={`rounded-lg shadow-sm border ${isDark ? "bg-gray-800 text-white border-gray-700" : "bg-white text-gray-900 border-gray-200"}`}
       >
         <div
-          className={`card-header py-2 ${isDark ? "border-secondary" : "border-bottom"}`}
+          className={`px-3 py-2 border-b ${isDark ? "border-gray-700" : "border-gray-200"}`}
         >
-          <div className="d-flex align-items-center gap-2">
+          <div className="flex items-center gap-2">
             {paymentMode === "cash" && (
-              <MdAttachMoney size={20} className="text-success" />
+              <MdAttachMoney size={20} className="text-green-500" />
             )}
             {paymentMode === "card" && (
-              <MdCreditCard size={20} className="text-primary" />
+              <MdCreditCard size={20} className="text-blue-500" />
             )}
             {paymentMode === "upi" && (
-              <MdQrCode size={20} className="text-warning" />
+              <MdQrCode size={20} className="text-yellow-500" />
             )}
             <h6
-              className={`mb-0 fw-bold ${isDark ? "text-white" : "text-dark"}`}
+              className={`mb-0 font-bold ${isDark ? "text-white" : "text-gray-900"}`}
             >
               Payment Details
             </h6>
           </div>
         </div>
-        <div className="card-body p-3">
+        <div className="p-3">
           {/* Payment Mode Switcher */}
-          <div className="d-flex gap-2 mb-3">
+          <div className="flex gap-2 mb-3">
             <button
-              className={`btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 p-2 ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-md border transition-colors ${
                 paymentMode === "cash"
-                  ? "btn-success text-white"
+                  ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
                   : isDark
-                    ? "btn-outline-secondary text-light"
-                    : "btn-outline-secondary"
+                    ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
               }`}
               onClick={() => setPaymentMode("cash")}
             >
               <MdAttachMoney /> Cash
             </button>
             <button
-              className={`btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 p-2 ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-md border transition-colors ${
                 paymentMode === "card"
-                  ? "btn-primary text-white"
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
                   : isDark
-                    ? "btn-outline-secondary text-light"
-                    : "btn-outline-secondary"
+                    ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
               }`}
               onClick={() => setPaymentMode("card")}
             >
               <MdCreditCard /> Card
             </button>
             <button
-              className={`btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 p-2 ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-md border transition-colors ${
                 paymentMode === "upi"
-                  ? "btn-warning text-dark"
+                  ? "bg-yellow-500 text-white border-yellow-500 hover:bg-yellow-600"
                   : isDark
-                    ? "btn-outline-secondary text-light"
-                    : "btn-outline-secondary"
+                    ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
               }`}
               onClick={() => setPaymentMode("upi")}
             >
@@ -160,26 +160,26 @@ export default function PosPaymentPanel({
             </button>
           </div>
 
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <span className="opacity-75">Total Bill</span>
-            <span className="fw-bold fs-4">
+          <div className="flex justify-between items-center mb-3">
+            <span className="opacity-75 text-sm">Total Bill</span>
+            <span className="font-bold text-2xl">
               ₹{roundedGrandTotal.toFixed(2)}
             </span>
           </div>
 
           <div className="mb-3">
-            <label className="form-label small opacity-75 mb-1">
+            <label className="block text-xs font-medium opacity-75 mb-1">
               {paymentMode === "cash" ? "Amount Received" : "Amount to Charge"}
             </label>
-            <div className="input-group input-group-lg">
+            <div className="flex rounded-md shadow-sm">
               <span
-                className={`input-group-text ${isDark ? "bg-secondary bg-opacity-25 border-secondary text-light" : "bg-light"}`}
+                className={`inline-flex items-center px-3 rounded-l-md border border-r-0 ${isDark ? "bg-gray-700 border-gray-600 text-gray-300" : "bg-gray-50 border-gray-300 text-gray-500"}`}
               >
                 ₹
               </span>
               <input
                 type="number"
-                className={`form-control fw-bold ${isDark ? "bg-dark text-light border-secondary" : "bg-white text-dark"}`}
+                className={`flex-1 block w-full px-3 py-2 rounded-r-md border font-bold text-lg focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-900 text-white border-gray-600" : "bg-white text-gray-900 border-gray-300"}`}
                 placeholder="0.00"
                 value={amountReceived}
                 onChange={(e) => setAmountReceived(e.target.value)}
@@ -190,17 +190,17 @@ export default function PosPaymentPanel({
 
           {paymentMode === "cash" && (
             <>
-              <div className="d-flex justify-content-between align-items-center mb-2 small">
+              <div className="flex justify-between items-center mb-2 text-sm">
                 <span className="opacity-75">Round Off</span>
                 <span>{roundOff.toFixed(2)}</span>
               </div>
 
               <div
-                className={`d-flex justify-content-between align-items-center pt-3 mt-2 border-top ${isDark ? "border-secondary" : ""}`}
+                className={`flex justify-between items-center pt-3 mt-2 border-t ${isDark ? "border-gray-700" : "border-gray-200"}`}
               >
-                <span className="fw-bold">Balance To Return</span>
+                <span className="font-bold">Balance To Return</span>
                 <span
-                  className={`fw-bold fs-5 ${balance < 0 ? "text-danger" : "text-success"}`}
+                  className={`font-bold text-xl ${balance < 0 ? "text-red-500" : "text-green-500"}`}
                 >
                   ₹{balance > 0 ? balance.toFixed(2) : "0.00"}
                 </span>
@@ -210,12 +210,12 @@ export default function PosPaymentPanel({
 
           {paymentMode !== "cash" && (
             <div className="mb-3">
-              <label className="form-label small opacity-75 mb-1">
+              <label className="block text-xs font-medium opacity-75 mb-1">
                 Transaction Ref (Optional)
               </label>
               <input
                 type="text"
-                className={`form-control ${isDark ? "bg-dark text-light border-secondary" : "bg-white text-dark"}`}
+                className={`block w-full px-3 py-2 rounded-md border focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${isDark ? "bg-gray-900 text-white border-gray-600 placeholder-gray-500" : "bg-white text-gray-900 border-gray-300 placeholder-gray-400"}`}
                 placeholder="Enter Ref No."
                 value={transactionRef}
                 onChange={(e) => setTransactionRef(e.target.value)}
@@ -224,7 +224,13 @@ export default function PosPaymentPanel({
           )}
 
           <button
-            className={`btn w-100 mt-3 py-2 fw-bold shadow-sm ${paymentMode === "cash" ? "btn-success" : paymentMode === "card" ? "btn-primary" : "btn-warning"}`}
+            className={`w-full mt-3 py-2 px-4 rounded-md font-bold shadow-sm text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              paymentMode === "cash"
+                ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                : paymentMode === "card"
+                  ? "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+                  : "bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500"
+            }`}
             onClick={handlePayment}
           >
             CONFIRM {paymentMode.toUpperCase()} PAYMENT

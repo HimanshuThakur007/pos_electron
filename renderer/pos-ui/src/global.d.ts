@@ -31,6 +31,14 @@ declare global {
       ) => Promise<{ status: string; id?: number; message?: string }>;
       getHoldSales: (params?: any) => Promise<{ status: string; data: any[] }>;
       deleteHeldSale: (id: number) => Promise<{ status: string }>;
+      getPendingSyncCount: (fy_code: string) => Promise<number>;
+      syncSpecificTransaction: (
+        bill_no: string,
+        fy_code: string,
+      ) => Promise<{ status: string; message?: string }>;
+      printReceipt: (
+        htmlContent: string,
+      ) => Promise<{ status: string; message?: string }>;
     };
   }
 }

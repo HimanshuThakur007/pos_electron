@@ -26,6 +26,23 @@ export const createInvoiceTable = () => {
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_sync_status ON ${TABLE_NAME}(sync_status)`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_created_at ON ${TABLE_NAME}(created_at)`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_branch_terminal ON ${TABLE_NAME}(branch_code, terminal_code)`).run();
+
+  // 🚀 Enterprise Queue System for Invoices
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS invoice_sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bill_no TEXT UNIQUE,
+      sync_attempts INTEGER DEFAULT 0,
+      status INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  
+  db.prepare(`
+    INSERT OR IGNORE INTO invoice_sync_queue (bill_no, sync_attempts, status)
+    SELECT bill_no, sync_attempts, sync_status
+    FROM ${TABLE_NAME} WHERE sync_status = 0
+  `).run();
 };
 
 // Initialize table
@@ -42,7 +59,10 @@ const insertInvoiceStmt = db.prepare(`
 
 export const insertInvoiceSqlite = (invoice) => {
   try {
-    insertInvoiceStmt.run(invoice);
+    db.transaction(() => {
+      insertInvoiceStmt.run(invoice);
+      db.prepare(`INSERT OR IGNORE INTO invoice_sync_queue (bill_no) VALUES (?)`).run(invoice.bill_no);
+    })();
     return true;
   } catch (err) {
     console.error("❌ Insert Invoice Error:", err.message);
@@ -80,14 +100,22 @@ export const getPendingInvoices = (
   branchCode = null,
   terminalCode = null
 ) => {
-  let query = `
-    SELECT *
-    FROM ${TABLE_NAME}
-    WHERE sync_status = 0
-    AND sync_attempts < 5
-  `;
+  const queueItems = db.prepare(`
+    SELECT bill_no FROM invoice_sync_queue
+    WHERE status = 0 AND sync_attempts < 5
+    ORDER BY id ASC LIMIT ?
+  `).all(limit);
 
-  const params = [];
+  if (!queueItems.length) return [];
+
+  const billNos = queueItems.map(q => q.bill_no);
+  const placeholders = billNos.map(() => '?').join(',');
+
+  let query = `
+    SELECT * FROM ${TABLE_NAME}
+    WHERE bill_no IN (${placeholders})
+  `;
+  const params = [...billNos];
 
   if (branchCode) {
     query += " AND branch_code = ?";
@@ -99,8 +127,7 @@ export const getPendingInvoices = (
     params.push(terminalCode);
   }
 
-  query += " ORDER BY created_at ASC LIMIT ?";
-  params.push(limit);
+  query += " ORDER BY created_at ASC";
 
   return db.prepare(query).all(...params);
 };
@@ -115,7 +142,10 @@ const markSyncedStmt = db.prepare(`
   WHERE bill_no = ?
 `);
 export const markInvoiceSynced = (bill_no) => {
-  markSyncedStmt.run(bill_no);
+  db.transaction(() => {
+    markSyncedStmt.run(bill_no);
+    db.prepare(`DELETE FROM invoice_sync_queue WHERE bill_no = ?`).run(bill_no);
+  })();
 };
 
 /**
@@ -127,7 +157,13 @@ const incAttemptsStmt = db.prepare(`
   WHERE bill_no = ?
 `);
 export const incrementInvoiceSyncAttempts = (bill_no) => {
-  incAttemptsStmt.run(bill_no);
+  db.transaction(() => {
+    incAttemptsStmt.run(bill_no);
+    db.prepare(`
+      UPDATE invoice_sync_queue SET sync_attempts = sync_attempts + 1
+      WHERE bill_no = ?
+    `).run(bill_no);
+  })();
 };
 
 const getCountStmt = db.prepare(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`);
@@ -182,13 +218,19 @@ const resetFailedStmt = db.prepare(`
   WHERE sync_attempts >= 5
 `);
 export const resetFailedInvoices = () => {
-  resetFailedStmt.run();
+  db.transaction(() => {
+    resetFailedStmt.run();
+    db.prepare(`UPDATE invoice_sync_queue SET sync_attempts = 0 WHERE sync_attempts >= 5`).run();
+  })();
 };
 
 const clearInvoicesStmt = db.prepare(`DELETE FROM ${TABLE_NAME}`);
 export const clearInvoicesSqlite = () => {
   try {
-    clearInvoicesStmt.run();
+    db.transaction(() => {
+      clearInvoicesStmt.run();
+      db.prepare(`DELETE FROM invoice_sync_queue`).run();
+    })();
   } catch (err) {
     console.error("❌ Clear Invoices Error:", err.message);
   }

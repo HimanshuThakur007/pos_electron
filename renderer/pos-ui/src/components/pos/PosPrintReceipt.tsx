@@ -26,6 +26,8 @@ export interface PosPrintReceiptProps {
     cashier: string;
     customerName?: string;
     customerMobile?: string;
+    paymentMode?: string;
+    transactionRef?: string;
   };
   cart: PrintCartItem[];
   totals: {
@@ -36,6 +38,8 @@ export interface PosPrintReceiptProps {
     totalTax: number;
     roundOff: number;
     grandTotal: number;
+    amountReceived?: number;
+    balance?: number;
   };
 }
 
@@ -93,40 +97,35 @@ export const PosPrintReceipt = React.forwardRef<
         inWords(Math.floor(n / 10000000)) + " Crore " + inWords(n % 10000000)
       );
     };
-
     return inWords(Math.floor(num)) + " Only";
   };
 
-  // GST Calculation
+  // Group items by Tax Rate
+  const groupedItems = (cart || []).reduce(
+    (acc, item) => {
+      const rate = item.tax || 0;
+      if (!acc[rate]) acc[rate] = [];
+      acc[rate].push(item);
+      return acc;
+    },
+    {} as Record<number, PrintCartItem[]>,
+  );
+
+  const sortedRates = Object.keys(groupedItems)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  // GST Calculation for Summary
   const gstMap: Record<number, { taxable: number; tax: number }> = {};
-  let grandTaxable = 0;
-  let grandSGST = 0;
-  let grandCGST = 0;
-  let grandTotalGST = 0;
-
-  cart.forEach((item) => {
+  (cart || []).forEach((item) => {
     const rate = item.tax || 0;
-    // Assuming price is exclusive of tax for calculation purposes in this context,
-    // or we are deriving it. Using the logic from the provided snippet:
     const lineTotal = (item.price - item.discount) * item.qty;
-    const taxable = lineTotal; // Simplified based on typical POS logic where lineTotal is taxable
-    const taxAmt = (taxable * rate) / 100;
+    const taxable = lineTotal / (1 + rate / 100);
+    const taxAmt = lineTotal - taxable;
 
-    if (!gstMap[rate]) {
-      gstMap[rate] = { taxable: 0, tax: 0 };
-    }
+    if (!gstMap[rate]) gstMap[rate] = { taxable: 0, tax: 0 };
     gstMap[rate].taxable += taxable;
     gstMap[rate].tax += taxAmt;
-  });
-
-  // Re-sum for summary table
-  Object.keys(gstMap).forEach((key) => {
-    const rate = Number(key);
-    const t = gstMap[rate];
-    grandTaxable += t.taxable;
-    grandSGST += t.tax / 2;
-    grandCGST += t.tax / 2;
-    grandTotalGST += t.taxable + t.tax;
   });
 
   const printNow = new Date();
@@ -142,350 +141,242 @@ export const PosPrintReceipt = React.forwardRef<
     hour12: true,
   });
 
+  const formattedDate = React.useMemo(() => {
+    if (!billDetails?.date) return printDateStr;
+    const date = new Date(billDetails.date);
+    if (isNaN(date.getTime())) {
+      return billDetails.date.includes(",")
+        ? billDetails.date.split(",")[0].trim()
+        : billDetails.date;
+    }
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }, [billDetails?.date, printDateStr]);
+
   return (
     <div
       ref={ref}
-      style={{
-        width: "70mm",
-        padding: "0",
-        margin: "0 auto",
-        fontFamily: "monospace",
-        fontSize: "11px",
-        boxSizing: "border-box",
-      }}
+      className="w-full pr-[2mm] pl-[5mm] m-0 font-mono text-[10px] leading-[1.2] text-black box-border"
     >
       <style>{`
-.center { text-align: center; }
-.right { text-align: right; }
-.left { text-align: left; }
-.bold { font-weight: 700; }
+        @page { margin: 0; }
+      `}</style>
 
-.hr {
-  border-top: 1px dashed #000;
-  margin: 5px 0;
-}
-
-/* ===== MAIN ITEM TABLE ===== */
-table.items {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 2px;
-  border: 1px solid #000;
-}
-
-table.items thead th {
-  border-bottom: 1px solid #000;
-  border-right: 1px solid #000;
-  padding: 2px 1px;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-table.items thead th:last-child {
-  border-right: 0;
-}
-
-table.items tbody td {
-  border-right: 1px solid #000;
-  padding: 2px 1px;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-table.items tbody td:last-child {
-  border-right: 0;
-}
-
-/* Light separator line (prevents black blocks) */
-table.items tbody tr {
-  border-bottom: 1px dashed #000;
-}
-
-table.items tbody tr:last-child {
-  border-bottom: 1px solid #000;
-}
-
-/* Column widths optimized for 70mm */
-.col-desc { width: 28%; }
-.col-barcode { width: 18%; }
-.col-qty { width: 8%; }
-.col-rate { width: 14%; }
-.col-disc { width: 10%; }
-.col-gst { width: 8%; }
-.col-amt { width: 14%; }
-
-/* prevent overflow */
-td, th {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ===== TOTALS TABLE ===== */
-.col-gross { width: 30%; }
-.col-gross-amt { width: 15%; }
-.col-gross-qty { width: 10%; }
-.col-gross-rate { width: 5%; }
-.col-gross-disc { width: 10%; }
-.col-gross-gst { width: 5%; }
-.col-gross-net { width: 25%; }
-
-/* ===== GST TABLE ===== */
-table.gst-table {
-  width: 65%;
-  margin-left: auto;
-  border-collapse: collapse;
-}
-
-table.gst-table td {
-  padding: 1px 0;
-  font-size: 9px;
-}
-
-/* ===== SUMMARY TABLE ===== */
-table.summary-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-table.summary-table td {
-  padding: 1px;
-  font-size: 9px;
-}
-
-/* ===== GROSS ROW (matches printed bill) ===== */
-table.gross-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 10px;
-}
-
-table.gross-table td {
-  padding: 2px 0;
-}
-`}</style>
-
-      <div className="center bold">TAX INVOICE</div>
-      <div className="center bold">{storeDetails.name}</div>
-      <div className="center">{storeDetails.address}</div>
-      <div className="left" style={{ fontSize: "10px" }}>
-        GSTIN: {storeDetails.gstin}, CIN:{" "}
-        {storeDetails.cin || "U18204DL2008PTC175779"}
+      {/* Header */}
+      <div className="text-center font-bold text-[12px]">TAX INVOICE</div>
+      <div className="text-center font-bold text-[12px]">
+        {storeDetails?.name}
       </div>
-      <div className="left" style={{ fontSize: "9px" }}>
-        info@market99.com, www.market99.com,{" "}
-        <span className="bold">Ph.{storeDetails.phone}</span>
+      <div className="text-center text-[10px]">{storeDetails?.address}</div>
+
+      <div className="text-center text-[10px]">
+        GSTIN: {storeDetails?.gstin}
       </div>
-      <div className="left" style={{ fontSize: "9px" }}>
-        Regd Off: D-153, Okhla Ph-1,N.D-20 Ph.No.011-47366100
+      <div className="text-center text-[10px]">
+        CIN: {storeDetails?.cin || "U18204DL2008PTC175779"}
+      </div>
+      <div className="text-center text-[9px]">
+        info@market99.com, www.market99.com
+      </div>
+      <div className="text-center text-[9px]">
+        Regd Off: D-153, Okhla Ph-1, N.D-20 Ph.No. 011-47366100
+      </div>
+      <div className="text-center text-[10px]">
+        Contact: {storeDetails?.phone}
+      </div>
+      <div className="border-t border-dashed border-black my-1"></div>
+
+      {/* Bill Details */}
+      <div className="flex justify-between">
+        <span>Invoice No: {billDetails?.billNo}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Date: {formattedDate}</span>
+        <span>Time: {printTimeStr}</span>
       </div>
 
-      <div className="hr"></div>
+      <div className="border-t border-dashed border-black my-1"></div>
 
-      <div>Invoice No: {billDetails.billNo}</div>
-      <div>
-        Date: {billDetails.date || printDateStr} Time: {printTimeStr}
+      {/* Table Header */}
+      {/* Row 1: Description & Hsn */}
+      <div className="flex font-bold text-[10px] w-full">
+        <div className="w-[75%] overflow-hidden whitespace-nowrap text-ellipsis">
+          Description
+        </div>
+        <div className="w-[25%] text-right">Hsn</div>
+      </div>
+      {/* Row 2: Other Details */}
+      <div className="flex text-[10px] w-full font-bold border-b border-black pb-0.5 mb-0.5">
+        <div className="w-[25%]">Barcode</div>
+        <div className="w-[10%] text-center">Qty</div>
+        {/* <div className="col-uom">UOM</div> */}
+        <div className="w-[20%] text-right">Price</div>
+        <div className="w-[20%] text-right">Disc</div>
+        <div className="w-[25%] text-right">Amount</div>
       </div>
 
-      <div className="hr"></div>
-
-      <table className="items">
-        <thead className="heading">
-          <tr className="heading">
-            <th className="col-desc" style={{ textAlign: "left" }}>
-              DESCRIPTION
-            </th>
-            <th className="col-barcode" style={{ textAlign: "left" }}>
-              BARCODE
-            </th>
-            <th className="col-qty right item-list">QTY</th>
-            <th className="col-rate right item-list">RATE</th>
-            <th className="col-disc right item-list">DISC</th>
-            <th className="col-gst right item-list">GST%</th>
-            <th className="col-amt right item-list">AMT</th>
-          </tr>
-        </thead>
-        <tbody className="item-list">
-          {cart.map((item, index) => {
+      {/* Items Grouped by Tax */}
+      {sortedRates.map((rate) => (
+        <div key={rate}>
+          <div className="font-bold mt-1 text-[10px] underline">
+            GST {rate}%
+          </div>
+          {groupedItems[rate].map((item, idx) => {
             const lineTotal = (item.price - item.discount) * item.qty;
             return (
-              <tr key={index}>
-                <td className="col-desc item-list" style={{ fontSize: "8px" }}>
-                  {(item.printDesc || item.itemName).substring(0, 14)}
-                </td>
-                <td className="col-desc item-list">{item.itemCode}</td>
-                <td className="col-qty right item-list">{item.qty}</td>
-                <td className="col-rate right item-list">
-                  {item.price.toFixed(2)}
-                </td>
-                <td className="col-disc right item-list">
-                  {item.discount.toFixed(2)}
-                </td>
-                <td className="col-gst right item-list" style={{ width: "9%" }}>
-                  {item.tax}
-                </td>
-                <td
-                  className="col-amt right item-list"
-                  style={{ width: "18%" }}
-                >
-                  {lineTotal.toFixed(2)}
-                </td>
-              </tr>
+              <div
+                key={idx}
+                className="mb-1 border-b border-dashed border-black pb-0.5"
+              >
+                {/* Item Row 1 */}
+                <div className="flex font-normal text-[10px] w-full">
+                  <div className="w-[75%] overflow-hidden whitespace-nowrap text-ellipsis">
+                    {item.printDesc}
+                  </div>
+                  {/* <div className="col-hsn">{item.hsn || ""}</div> */}
+                  <div className="w-[25%] text-right">610990</div>
+                </div>
+                {/* Item Row 2 */}
+                <div className="flex text-[10px] w-full">
+                  <div className="w-[25%]">{item.itemCode}</div>
+                  <div className="w-[10%] text-center">{item.qty}</div>
+                  {/* <div className="col-uom">EA</div> */}
+                  <div className="w-[20%] text-right">
+                    {item.price.toFixed(2)}
+                  </div>
+                  <div className="w-[20%] text-right">
+                    {item.discount > 0
+                      ? (item.discount * item.qty).toFixed(2)
+                      : "0.00"}
+                  </div>
+                  <div className="w-[25%] text-right">
+                    {lineTotal.toFixed(2)}
+                  </div>
+                </div>
+              </div>
             );
           })}
-        </tbody>
-      </table>
+        </div>
+      ))}
 
-      <div className="hr"></div>
+      <div className="border-t border-dashed border-black my-1"></div>
 
-      <table className="gross-table">
-        <tbody>
-          <tr>
-            <td className="col-desc bold">Gross Amt:</td>
-            <td className="col-barcode"></td>
-            <td className="col-qty right">{totals.totalQty}</td>
-            <td className="col-rate right">{totals.grossAmount.toFixed(2)}</td>
-            <td className="col-disc right">
-              {totals.totalDiscount.toFixed(2)}
-            </td>
-            <td className="col-gst right"></td>
-            <td className="col-amt right bold">
-              {totals.taxableValue.toFixed(2)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="hr"></div>
-
-      <table className="gst-table">
-        <tbody>
-          <tr>
-            <td>Taxable Amount</td>
-            <td className="right">{totals.taxableValue.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>SGST</td>
-            <td className="right">{(totals.totalTax / 2).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>CGST</td>
-            <td className="right">{(totals.totalTax / 2).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>Total Discount</td>
-            <td className="right">{totals.totalDiscount.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>Round Off</td>
-            <td className="right">{totals.roundOff.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>Net Bill Amount</td>
-            <td className="right bold">{totals.grandTotal.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>Pending Amount</td>
-            <td className="right bold">{totals.grandTotal.toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="hr"></div>
-      <div style={{ fontWeight: "bold", fontSize: "11px" }}>
-        Rs. {numberToWords(totals.grandTotal)}
+      {/* Totals */}
+      <div className="flex justify-between font-bold text-[10px]">
+        <span>Items: {(cart || []).length}</span>
+        <span>Qty: {totals?.totalQty}</span>
+        <span>Disc: {(totals?.totalDiscount || 0).toFixed(2)}</span>
+        <span>Amt: {(totals?.grandTotal || 0).toFixed(2)}</span>
       </div>
-      <div className="hr"></div>
-      <div style={{ fontWeight: "bold", fontSize: "11px" }}>
-        Amount Paid: {totals.grandTotal.toFixed(2)}
-      </div>
-      <div style={{ fontWeight: "bold", fontSize: "11px" }}>
-        Amount Refunded: 0.00
-      </div>
-      <div className="hr"></div>
+      <div className="border-t border-dashed border-black my-1"></div>
 
-      <table className="summary-table">
-        <tbody>
-          <tr>
-            <td className="left">GST Details</td>
-            <td className="right">Taxable</td>
-            <td className="right">SGST</td>
-            <td className="right">CGST</td>
-            <td className="right">Total</td>
-          </tr>
-          {Object.keys(gstMap)
-            .sort((a, b) => Number(a) - Number(b))
-            .map((rate) => {
-              const r = Number(rate);
-              const t = gstMap[r];
-              const sgst = t.tax / 2;
-              const cgst = t.tax / 2;
-              const total = t.taxable + t.tax;
-              return (
-                <tr key={rate}>
-                  <td className="left">Sale @ GST {rate}%</td>
-                  <td className="right">{t.taxable.toFixed(2)}</td>
-                  <td className="right">{sgst.toFixed(2)}</td>
-                  <td className="right">{cgst.toFixed(2)}</td>
-                  <td className="right">{total.toFixed(2)}</td>
-                </tr>
-              );
-            })}
-          <tr style={{ borderTop: "1px dashed #000" }}>
-            <td className="left bold">TOTAL</td>
-            <td className="right bold">{grandTaxable.toFixed(2)}</td>
-            <td className="right bold">{grandSGST.toFixed(2)}</td>
-            <td className="right bold">{grandCGST.toFixed(2)}</td>
-            <td className="right bold">{grandTotalGST.toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="hr"></div>
-      <div
-        style={{
-          fontWeight: "bold",
-          fontSize: "11px",
-          borderBottom: "1px solid black",
-          width: "26%",
-        }}
-      >
-        Tender Mode
+      <div className="ml-[25%]">
+        <div className="flex justify-between">
+          <span>Gross Sale Value</span>
+          <span>{(totals?.grossAmount || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Tax</span>
+          <span>{(totals?.totalTax || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Round Off</span>
+          <span>{(totals?.roundOff || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between font-bold">
+          <span>Net Payable</span>
+          <span>{(totals?.grandTotal || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Received Amount</span>
+          <span>{(totals?.amountReceived || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Balance Paid</span>
+          <span>{(totals?.balance || 0).toFixed(2)}</span>
+        </div>
       </div>
-      {/* Mocking Tender Mode as we don't have it in props yet */}
-      <table style={{ width: "100%" }}>
-        <tbody>
-          <tr>
-            <td style={{ fontWeight: "bold", fontSize: "11px" }}>
-              Cash/Card:{" "}
-            </td>
-            <td
-              className="right"
-              style={{ fontWeight: "bold", fontSize: "11px" }}
-            >
-              {totals.grandTotal.toFixed(2)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
 
-      <div className="hr"></div>
-      <div className="left" style={{ fontSize: "10px" }}>
+      <div className="border-t border-dashed border-black my-1"></div>
+
+      <div className="text-center font-bold my-1.5">
+        {numberToWords(totals?.grandTotal || 0)}
+      </div>
+
+      <div className="border-t border-dashed border-black my-1"></div>
+
+      {/* Payment Details */}
+      <div className="text-center font-bold">Payment Details</div>
+      <div className="flex text-[10px] border-b border-black">
+        <div className="flex-1">Type</div>
+        <div className="flex-[2] text-center">Reference No</div>
+        <div className="flex-1 text-right">Amount</div>
+      </div>
+      <div className="flex text-[10px] mt-0.5">
+        <div className="flex-1 uppercase">
+          {billDetails?.paymentMode || "CASH"}
+        </div>
+        <div className="flex-[2] text-center">
+          {billDetails?.transactionRef || "xxxxxxxxxxx"}
+        </div>
+        <div className="flex-1 text-right">
+          {(totals?.amountReceived || totals?.grandTotal || 0).toFixed(2)}
+        </div>
+      </div>
+
+      <div className="border-t border-dashed border-black my-1"></div>
+
+      {/* Tax Summary */}
+      <div className="text-center font-bold">Tax Summary</div>
+      <div className="flex text-[10px] border-b border-black">
+        <div className="flex-1">Rate</div>
+        <div className="flex-[2] text-right">Taxable</div>
+        <div className="flex-[2] text-right">CGST</div>
+        <div className="flex-[2] text-right">SGST</div>
+        <div className="flex-[2] text-right">Total</div>
+      </div>
+      {Object.keys(gstMap).map((key) => {
+        const rate = Number(key);
+        const { taxable, tax } = gstMap[rate];
+        return (
+          <div key={key} className="flex text-[10px]">
+            <div className="flex-1">{rate}%</div>
+            <div className="flex-[2] text-right">{taxable.toFixed(2)}</div>
+            <div className="flex-[2] text-right">{(tax / 2).toFixed(2)}</div>
+            <div className="flex-[2] text-right">{(tax / 2).toFixed(2)}</div>
+            <div className="flex-[2] text-right">
+              {(taxable + tax).toFixed(2)}
+            </div>
+          </div>
+        );
+      })}
+
+      <div className="border-t border-dashed border-black my-1"></div>
+      <div className="text-[10px] text-left">
         Any exchange will have to be made with in 30 days of Purchase in Sealed
         Original Packing.(12 TO 4 PM ONLY) NoGuarantee/Warranty on
         Electrical/Electronic Items. "Valuation of goods has been done as per
         Section 15(1) of SGST & CGST Act along with Rule 2 of Value of Supply"
       </div>
-      <div className="hr"></div>
-      <div className="center bold" style={{ fontSize: "11px" }}>
+      <div className="border-t border-dashed border-black my-1"></div>
+      <div className="text-center font-bold text-[10px]">
         THANK YOU FOR SHOPPING WITH US. HERE IS SOMETHING EXTRA FOR YOU! SHOP AT
         WWW.MARKET99.COM GET FLAT 10% OFF ON ORDERS OF RS.1499 AND ABOVE USE
         CODE
       </div>
-      <div className="hr"></div>
-      <div className="center bold">| B84292KW65 |</div>
-      <div className="hr"></div>
-      <div className="center bold">**Coupon is Valid for 30 Days **</div>
+      <div className="border-t border-dashed border-black my-1"></div>
+      <div className="text-center font-bold">| B84292KW65 |</div>
+      <div className="border-t border-dashed border-black my-1"></div>
+      <div className="text-center font-bold">
+        **Coupon is Valid for 30 Days **
+      </div>
+
+      <div className="text-center text-[10px]">
+        Thank you for shopping with us!
+      </div>
     </div>
   );
 });

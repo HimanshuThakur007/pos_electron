@@ -122,17 +122,17 @@ export const getSchemeColor = (
     if (match) {
       const reqQty = parseInt(match[1]);
       return item.qty >= reqQty
-        ? "text-success fw-bold"
-        : "text-danger fw-bold";
+        ? "text-green-600 font-bold"
+        : "text-red-600 font-bold";
     }
   }
   if (isPPScheme(item.schm_type, item.schm_camp_grp)) {
     if (item.appliedQty !== undefined) {
       return item.appliedQty > 0
-        ? "text-success fw-bold"
-        : "text-danger fw-bold";
+        ? "text-green-600 font-bold"
+        : "text-red-600 font-bold";
     }
-    return "text-danger fw-bold";
+    return "text-red-600 font-bold";
   }
   if (strType === "4" && item.schm_camp_grp) {
     let buyQty = 0;
@@ -152,11 +152,11 @@ export const getSchemeColor = (
     if (buyQty > 0 && getQty > 0) {
       const bundleSize = buyQty + getQty;
       return item.qty >= bundleSize
-        ? "text-success fw-bold"
-        : "text-danger fw-bold";
+        ? "text-green-600 font-bold"
+        : "text-red-600 font-bold";
     }
   }
-  if (item.schm_camp_grp) return "text-success fw-bold";
+  if (item.schm_camp_grp) return "text-green-600 font-bold";
   return "";
 };
 

@@ -22,13 +22,13 @@ import {
   insertBranchesBulkSqlite,
   swapBranchTablesSqlite
 } from "../repositories/branch.sqlite.repo.js";
-import { API_BASE_URL } from "../config.js";
+// import config from "../config.cjs";
+
+// const { API_BASE_URL, API_BASE_URL2 } = config;
 
 export async function syncStockData(branchCode, isManual = false) {
-  console.log(`🔄 Starting Stock Sync (API)... [Manual: ${isManual}]`);
-
   if (!branchCode) {
-    console.log("⚠️ No branch code provided. Skipping stock sync.");
+    // console.log("⚠️ No branch code provided. Skipping stock sync.");
     return;
   }
 
@@ -46,6 +46,8 @@ export async function syncStockData(branchCode, isManual = false) {
       }
     }
   }
+
+  console.log(`🔄 Starting Stock Sync (API)... [Manual: ${isManual}]`);
 
   try {
     // 1. Prepare Credentials
@@ -107,8 +109,6 @@ export async function syncStockData(branchCode, isManual = false) {
 
 // ===================================item-sync===========================================
 export async function syncItemsData(isManual = false) {
-  console.log(`🔄 Starting Items Sync (API)... [Manual: ${isManual}]`);
-
   if (!isManual) {
     const lastLog = getLastSyncLogSqlite('SUCCESS_ITEMS');
     if (lastLog && lastLog.created_at) {
@@ -121,6 +121,8 @@ export async function syncItemsData(isManual = false) {
       }
     }
   }
+
+  console.log(`🔄 Starting Items Sync (API)... [Manual: ${isManual}]`);
 
   try {
     const externalApiUrl = 'https://market99.tech/api/item_master';
@@ -195,8 +197,6 @@ export async function syncItemsData(isManual = false) {
 }
 // ==========================================scheme-sync=============================
 export async function syncSchemesData(isManual = false) {
-  console.log(`🔄 Starting Schemes Sync (API)... [Manual: ${isManual}]`);
-
   if (!isManual) {
     const lastLog = getLastSyncLogSqlite('SUCCESS_SCHEMES');
     if (lastLog && lastLog.created_at) {
@@ -210,8 +210,24 @@ export async function syncSchemesData(isManual = false) {
     }
   }
 
+  console.log(`🔄 Starting Schemes Sync (API)... [Manual: ${isManual}]`);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/schemes`);
+    const externalApiUrl = 'https://market99.tech/api/reg_offer';
+    const payload = {
+      "access_key": "78f4d7d2-86b2-418e-b78c-482fadc4605e"
+    };
+
+    // Note: The native fetch API does not allow a body in a GET request.
+    // We use POST here to safely pass the payload body, matching your other API endpoints.
+    const response = await fetch(externalApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
@@ -248,8 +264,6 @@ export async function syncSchemesData(isManual = false) {
 
 // ==========================================branch-sync=============================
 export async function syncBranchesData(isManual = false) {
-  console.log(`🔄 Starting Branches Sync (API)... [Manual: ${isManual}]`);
-
   if (!isManual) {
     const lastLog = getLastSyncLogSqlite('SUCCESS_BRANCHES');
     if (lastLog && lastLog.created_at) {
@@ -262,6 +276,8 @@ export async function syncBranchesData(isManual = false) {
       }
     }
   }
+
+  console.log(`🔄 Starting Branches Sync (API)... [Manual: ${isManual}]`);
 
   try {
     const externalApiUrl = 'https://www.market99.tech/api/branchmaster';

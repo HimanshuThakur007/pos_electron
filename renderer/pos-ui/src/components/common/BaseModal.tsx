@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { X } from "lucide-react";
 
 interface BaseModalProps {
   show: boolean;
@@ -34,39 +35,75 @@ const BaseModal: React.FC<BaseModalProps> = ({
 
   return (
     <div
-      className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-      style={{ zIndex: 1060, backgroundColor: "rgba(0,0,0,0.5)" }}
+      className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300"
       onClick={onClose}
     >
+      <style>{`
+        @keyframes modal-pop {
+          0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
       <div
         ref={modalRef}
-        className={`rounded-3 shadow-lg d-flex flex-column ${
-          theme === "dark" ? "bg-dark text-light" : "bg-white text-dark"
+        className={`relative flex flex-col rounded-2xl shadow-2xl outline-none overflow-hidden ${
+          theme === "dark"
+            ? "bg-slate-900 text-white border border-slate-700"
+            : "bg-white text-slate-900 border border-slate-100"
         }`}
         style={{
           width: width,
           maxWidth: "95%",
           maxHeight: "85vh",
-          outline: "none",
+          animation: "modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
-        <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
+        {/* Header */}
+        <div
+          className={`flex items-center justify-between px-6 py-3 border-b ${
+            theme === "dark"
+              ? "border-slate-800 bg-slate-900/50"
+              : "border-slate-100 bg-white/80"
+          }`}
+        >
           <div>
-            <h5 className="mb-0 fw-bold">{title}</h5>
-            {subTitle && <small className="text-muted">{subTitle}</small>}
+            <h3 className="text-xl font-bold leading-tight tracking-tight">
+              {title}
+            </h3>
+            {subTitle && (
+              <p
+                className={`text-sm mt-1 font-medium ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}
+              >
+                {subTitle}
+              </p>
+            )}
           </div>
           <button
-            className={`btn-close ${theme === "dark" ? "btn-close-white" : ""}`}
             onClick={onClose}
-          ></button>
+            className={`p-2 rounded-full transition-all duration-200 ${
+              theme === "dark"
+                ? "hover:bg-slate-800 text-slate-400 hover:text-white active:bg-slate-700"
+                : "hover:bg-slate-100 text-slate-400 hover:text-slate-900 active:bg-slate-200"
+            }`}
+          >
+            <X size={22} />
+          </button>
         </div>
 
-        <div className="flex-grow-1 overflow-auto p-0">{children}</div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
 
+        {/* Footer */}
         {footer && (
-          <div className="p-3 border-top d-flex justify-content-between align-items-center">
+          <div
+            className={`px-6 py-4 border-t flex items-center justify-end gap-3 ${
+              theme === "dark"
+                ? "border-slate-800 bg-slate-800/30"
+                : "border-slate-100 bg-slate-50/80"
+            }`}
+          >
             {footer}
           </div>
         )}

@@ -116,7 +116,9 @@ export const getSchemesSqlite = () => {
   try {
     const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(TABLE_NAME);
     if (!tableExists) return [];
-    return db.prepare(`SELECT * FROM ${TABLE_NAME}`).all();
+    const rows = db.prepare(`SELECT * FROM ${TABLE_NAME}`).all();
+    console.log(`📊 Fetched Schemes Data (${rows.length} rows). Sample:`, rows.slice(0, 2));
+    return rows;
   } catch (err) {
     console.error("❌ SQLite Get Schemes Error:", err.message);
     return [];

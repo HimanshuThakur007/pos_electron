@@ -32,27 +32,38 @@ const HeldSaleRow = React.memo(
     return (
       <tr
         id={`held-sale-row-${index}`}
-        className={
+        className={`border-b last:border-0 transition-colors cursor-pointer ${
+          theme === "dark" ? "border-slate-700" : "border-slate-200"
+        } ${
           isSelected
             ? theme === "dark"
-              ? "table-active"
-              : "table-primary"
-            : ""
-        }
-        style={{ cursor: "pointer" }}
+              ? "bg-slate-700"
+              : "bg-blue-50"
+            : theme === "dark"
+              ? "hover:bg-slate-800/50"
+              : "hover:bg-gray-50"
+        }`}
         onClick={() => onSelect(index)}
         onDoubleClick={() => onResume(sale)}
       >
-        <td>#{sale.id}</td>
-        <td>{new Date(sale.created_at).toLocaleString()}</td>
-        <td>{sale.customer_name}</td>
-        <td>{sale.note || "-"}</td>
-        <td className="text-end">{sale.total_qty}</td>
-        <td className="text-end fw-bold">₹{sale.grand_total.toFixed(2)}</td>
-        <td className="text-center">
+        <td className="px-4 py-3">#{sale.id}</td>
+        <td className="px-4 py-3">
+          {new Date(sale.created_at).toLocaleString()}
+        </td>
+        <td className="px-4 py-3">{sale.customer_name}</td>
+        <td className="px-4 py-3">{sale.note || "-"}</td>
+        <td className="px-4 py-3 text-right">{sale.total_qty}</td>
+        <td className="px-4 py-3 text-right font-bold">
+          ₹{sale.grand_total.toFixed(2)}
+        </td>
+        <td className="px-4 py-3 text-center">
           <button
-            className={`btn btn-sm ${
-              isSelected ? "btn-primary" : "btn-outline-primary"
+            className={`inline-flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors border ${
+              isSelected
+                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                : theme === "dark"
+                  ? "border-blue-400 text-blue-400 hover:bg-blue-400/10"
+                  : "border-blue-600 text-blue-600 hover:bg-blue-50"
             }`}
             onClick={(e) => {
               e.stopPropagation();
@@ -94,20 +105,33 @@ const HoldSalesModal: React.FC<HoldSalesModalProps> = ({
 
   const footer = useMemo(
     () => (
-      <>
-        <div className="small text-muted">
-          <kbd>↑</kbd> <kbd>↓</kbd> Navigate &nbsp; <kbd>Enter</kbd> Resume
-          &nbsp; <kbd>Esc</kbd> Close
-        </div>
-        {/* <button className="btn btn-secondary" onClick={onClose}>
-          Close
-        </button> */}
-      </>
+      <div
+        className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+      >
+        <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 border border-gray-200 rounded-lg text-gray-800">
+          ↑
+        </kbd>{" "}
+        <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 border border-gray-200 rounded-lg text-gray-800">
+          ↓
+        </kbd>{" "}
+        Navigate &nbsp;
+        <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 border border-gray-200 rounded-lg text-gray-800">
+          Enter
+        </kbd>{" "}
+        Resume &nbsp;
+        <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 border border-gray-200 rounded-lg text-gray-800">
+          Esc
+        </kbd>{" "}
+        Close
+      </div>
     ),
-    [onClose],
+    [onClose, theme],
   );
 
-  const thClass = theme === "dark" ? "bg-secondary text-white" : "bg-light";
+  const thClass =
+    theme === "dark"
+      ? "bg-slate-900 text-gray-400 border-slate-700"
+      : "bg-gray-50 text-gray-700 border-slate-200";
 
   return (
     <BaseModal
@@ -119,34 +143,43 @@ const HoldSalesModal: React.FC<HoldSalesModalProps> = ({
       footer={footer}
     >
       {heldSales.length === 0 ? (
-        <div className="text-center py-5 text-muted">
+        <div
+          className={`text-center py-10 ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+        >
           <p className="mb-0">No held sales found.</p>
         </div>
       ) : (
-        <table className={`table mb-0 ${theme === "dark" ? "table-dark" : ""}`}>
-          <thead className="sticky-top" style={{ zIndex: 1 }}>
-            <tr>
-              {COLUMNS.map((col, index) => (
-                <th key={index} className={`${thClass} ${col.className || ""}`}>
-                  {col.label}
-                </th>
+        <div className="flex-1 overflow-auto">
+          <table
+            className={`w-full text-sm text-left ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}
+          >
+            <thead className={`sticky top-0 z-10 uppercase text-xs ${thClass}`}>
+              <tr>
+                {COLUMNS.map((col, index) => (
+                  <th
+                    key={index}
+                    className={`px-4 py-3 font-semibold border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} ${col.className || ""}`}
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {heldSales.map((sale, index) => (
+                <HeldSaleRow
+                  key={sale.id}
+                  sale={sale}
+                  index={index}
+                  isSelected={index === selectedIndex}
+                  theme={theme}
+                  onSelect={setSelectedIndex}
+                  onResume={onResume}
+                />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {heldSales.map((sale, index) => (
-              <HeldSaleRow
-                key={sale.id}
-                sale={sale}
-                index={index}
-                isSelected={index === selectedIndex}
-                theme={theme}
-                onSelect={setSelectedIndex}
-                onResume={onResume}
-              />
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       )}
     </BaseModal>
   );

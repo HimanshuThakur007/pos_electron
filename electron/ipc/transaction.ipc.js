@@ -1,8 +1,9 @@
 import { ipcMain } from "electron";
-import { insertTransactionSqlite, getLastTransactionSqlite, getTransactionsSqlite, getTransactionCountSqlite, insertSyncedTransactionSqlite } from "../repositories/transaction.sqlite.repo.js";
+import { insertTransactionSqlite, getLastTransactionSqlite, getTransactionsSqlite, getTransactionCountSqlite, insertSyncedTransactionSqlite, getPendingTransactions } from "../repositories/transaction.sqlite.repo.js";
 import { decreaseStockQtySqlite } from "../repositories/stock.sqlite.repo.js";
-import { insertInvoiceSqlite, getInvoiceCountSqlite, insertSyncedInvoiceSqlite, getLastSyncedInvoiceSqlite } from "../repositories/invoice.sqlite.repo.js";
+import { insertInvoiceSqlite, getInvoiceCountSqlite, insertSyncedInvoiceSqlite, getLastSyncedInvoiceSqlite, getPendingInvoices } from "../repositories/invoice.sqlite.repo.js";
 import { triggerInvoiceSync } from "../services/invoiceSync.js";
+import { syncSpecificTransaction } from "../services/backgroundSync.js";
 import { API_BASE_URL } from "../config.js";
 
 // console.log("🔄 Loading Transaction IPC...");
@@ -103,9 +104,30 @@ ipcMain.handle("get-transactions", async (_, params) => {
   return result;
 });
 
+ipcMain.handle("get-pending-sync-count", async (_, fy_code) => {
+  try {
+    const pendingTx = getPendingTransactions(9999, fy_code);
+    const pendingInvoices = getPendingInvoices(9999);
+    return pendingTx.length + pendingInvoices.length;
+  } catch (err) {
+    console.error("get-pending-sync-count error:", err);
+    return 0; // fail safe
+  }
+});
+
 ipcMain.handle("trigger-invoice-sync", async () => {
   triggerInvoiceSync();
   return { status: "success" };
+});
+
+ipcMain.handle("sync-specific-transaction", async (_, { bill_no, fy_code }) => {
+  try {
+    await syncSpecificTransaction(bill_no, fy_code);
+    return { status: "success" };
+  } catch (err) {
+    console.error("Manual sync error:", err);
+    return { status: "error", message: err.message };
+  }
 });
 
 ipcMain.handle("get-last-synced-invoice", async (_, params) => {

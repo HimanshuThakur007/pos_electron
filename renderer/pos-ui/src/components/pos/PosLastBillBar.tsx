@@ -63,10 +63,10 @@ const PosLastBillBar = React.memo(
 
     return (
       <div
-        className={`d-flex align-items-center justify-content-between px-4 py-2 shadow-sm ${
+        className={`flex items-center justify-between px-4 py-2 shadow-sm ${
           isDark
-            ? "bg-dark text-light border-bottom border-secondary"
-            : "bg-white text-dark border-bottom"
+            ? "bg-gray-900 text-white border-b border-gray-700"
+            : "bg-white text-gray-900 border-b border-gray-200"
         }`}
         style={{
           fontSize: "0.85rem",
@@ -77,19 +77,17 @@ const PosLastBillBar = React.memo(
         }}
       >
         {/* Left: Label */}
-        <div className="d-flex align-items-center gap-2">
+        <div className="flex items-center gap-2">
           <div
-            className={`d-flex align-items-center justify-content-center rounded-circle ${
-              isDark
-                ? "bg-secondary bg-opacity-25"
-                : "bg-primary bg-opacity-10 text-primary"
+            className={`flex items-center justify-center rounded-full ${
+              isDark ? "bg-gray-700 text-gray-300" : "bg-blue-100 text-blue-600"
             }`}
             style={{ width: "28px", height: "28px" }}
           >
             <MdReceiptLong size={16} />
           </div>
           <span
-            className="fw-bold text-uppercase"
+            className="font-bold uppercase"
             style={{ letterSpacing: "0.5px", fontSize: "0.75rem" }}
           >
             Last Transaction
@@ -97,81 +95,81 @@ const PosLastBillBar = React.memo(
         </div>
 
         {/* Right: Details */}
-        <div className="d-flex align-items-center gap-4">
-          <div className="d-flex align-items-center gap-2" title="Bill Number">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2" title="Bill Number">
             <span
-              className={`opacity-75 ${isDark ? "text-secondary" : "text-muted"}`}
+              className={`opacity-75 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Bill:
             </span>
-            <span className="fw-semibold font-monospace">
+            <span className="font-semibold font-mono">
               {lastBill?.bill_no || "-"}
             </span>
           </div>
 
           <div
-            className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+            className={`w-px h-4 ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           ></div>
 
-          <div className="d-flex align-items-center gap-2" title="Time">
+          <div className="flex items-center gap-2" title="Time">
             <span
-              className={`opacity-75 ${isDark ? "text-secondary" : "text-muted"}`}
+              className={`opacity-75 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Time:
             </span>
-            <span className="fw-medium">{timeStr}</span>
+            <span className="font-medium">{timeStr}</span>
           </div>
 
           <div
-            className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+            className={`w-px h-4 ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           ></div>
 
-          <div className="d-flex align-items-center gap-2" title="Amount">
+          <div className="flex items-center gap-2" title="Amount">
             <span
-              className={`opacity-75 ${isDark ? "text-secondary" : "text-muted"}`}
+              className={`opacity-75 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Amt:
             </span>
-            <span className="fw-bold text-success">
+            <span className="font-bold text-green-500">
               ₹{lastBill?.grand_total?.toFixed(2) || "0.00"}
             </span>
           </div>
 
           <div
-            className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+            className={`w-px h-4 ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           ></div>
 
-          <div className="d-flex align-items-center gap-2" title="Quantity">
+          <div className="flex items-center gap-2" title="Quantity">
             <span
-              className={`opacity-75 ${isDark ? "text-secondary" : "text-muted"}`}
+              className={`opacity-75 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Qty:
             </span>
-            <span className="fw-medium">{lastBill?.total_qty || 0}</span>
+            <span className="font-medium">{lastBill?.total_qty || 0}</span>
           </div>
 
           <div
-            className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+            className={`w-px h-4 ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           ></div>
 
-          <div className="d-flex align-items-center gap-2" title="Change">
+          <div className="flex items-center gap-2" title="Change">
             <span
-              className={`opacity-75 ${isDark ? "text-secondary" : "text-muted"}`}
+              className={`opacity-75 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Change:
             </span>
-            <span className="fw-medium">₹{change.toFixed(2)}</span>
+            <span className="font-medium">₹{change.toFixed(2)}</span>
           </div>
 
           <div
-            className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+            className={`w-px h-4 ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           ></div>
 
-          <div className="d-flex align-items-center gap-2" title="Sync Status">
+          <div className="flex items-center gap-2" title="Sync Status">
             {getSyncIcon()}
 
             <span
-              className={`small fw-medium ${!isOnline || syncStatus === "error" ? "text-danger" : ""}`}
+              className={`text-sm font-medium ${!isOnline || syncStatus === "error" ? "text-red-500" : ""}`}
             >
               {!isOnline || syncStatus === "error"
                 ? "Offline"

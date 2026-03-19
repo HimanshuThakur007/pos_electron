@@ -1,0 +1,126 @@
+/* InvoicePrint.css — matched to typical 80mm receipt thermal print look */
+
+.receipt {
+  width: 320px;               /* common thermal width ~80mm ≈ 320px at ~100-110dpi */
+  margin: 20px auto;
+  padding: 10px 12px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  line-height: 1.25;
+  letter-spacing: 0.2px;
+  background: white;
+  color: black;
+}
+
+.text-center { text-align: center; }
+
+.store-name {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 2px 0;
+  text-transform: uppercase;
+}
+
+.store-branch {
+  font-size: 15px;
+  font-weight: bold;
+  margin: 2px 0;
+}
+
+.store-address {
+  font-size: 11px;
+  line-height: 1.3;
+  margin: 6px 0 4px;
+}
+
+.gst-line {
+  font-size: 11.5px;
+  margin: 6px 0;
+}
+
+.separator {
+  margin: 6px 0;
+  color: #333;
+  white-space: pre;
+  font-size: 14px;
+}
+
+.bill-meta div {
+  margin: 2px 0;
+  font-size: 12.5px;
+}
+
+.items-header, .item-row {
+  display: flex;
+  font-size: 12px;
+  margin: 1px 0;
+}
+
+.item-col {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-col.code  { width: 22%; }
+.item-col.desc  { width: 36%; white-space: normal; word-break: break-word; line-height: 1.15; }
+.item-col.hsn   { width: 12%; text-align: center; }
+.item-col.qty   { width: 9%;  text-align: right; }
+.item-col.uom   { width: 7%;  text-align: center; }
+.item-col.rate  { width: 12%; text-align: right; }
+.item-col.disc  { width: 10%; text-align: right; }
+.item-col.amt   { width: 14%; text-align: right; font-weight: bold; }
+
+.items-header {
+  font-weight: bold;
+  border-bottom: 1px dashed #555;
+  padding-bottom: 3px;
+  margin-bottom: 4px;
+}
+
+.summary-line, .payment div {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0;
+  font-size: 13px;
+}
+
+.grand-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: bold;
+  margin: 6px 0 2px;
+  padding-top: 4px;
+  border-top: 1px dashed #000;
+}
+
+.tax-summary {
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+
+.tax-header, .tax-values {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.tax-header span, .tax-values span {
+  flex: 1;
+}
+
+.tax-header {
+  font-weight: bold;
+  margin: 4px 0 2px;
+  border-bottom: 1px dashed #777;
+  padding-bottom: 3px;
+}
+
+.footer {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.footer br { margin: 2px 0; display: block; }

@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --headings-font-weight: 600;
@@ -84,3 +86,8 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* 
+@tailwind base;
+@tailwind components;
+@tailwind utilities; */

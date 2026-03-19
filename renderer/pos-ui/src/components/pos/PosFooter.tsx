@@ -22,86 +22,88 @@ export default function PosFooter({
 
   return (
     <div
-      className={`pos-footer d-flex align-items-center justify-content-between px-4 py-3 shadow-lg ${
+      className={`flex items-center justify-between px-6 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] ${
         isDark
-          ? "bg-dark text-light border-top border-secondary"
-          : "bg-white text-dark border-top"
+          ? "bg-gray-900 text-white border-t border-gray-700"
+          : "bg-white text-gray-900 border-t border-gray-200"
       }`}
       style={{ zIndex: 100, height: "70px" }}
     >
       {/* Left: Summary Metrics */}
-      <div className="d-flex gap-4 align-items-center">
-        <div className="d-flex flex-column">
+      <div className="flex gap-6 items-center">
+        <div className="flex flex-col">
           <span
-            className={`small text-uppercase fw-bold ${
-              isDark ? "text-white opacity-75" : "text-muted"
+            className={`text-xs uppercase font-bold ${
+              isDark ? "text-gray-400" : "text-gray-500"
             }`}
             style={{ fontSize: "0.65rem", letterSpacing: "0.5px" }}
           >
             Total Qty
           </span>
-          <span className="fw-bold fs-4 lh-1">{totalQty}</span>
+          <span className="font-bold text-2xl leading-none">{totalQty}</span>
         </div>
 
         <div
-          className={`vr ${isDark ? "bg-secondary" : "bg-dark"} opacity-25`}
+          className={`w-px ${isDark ? "bg-gray-600" : "bg-gray-300"}`}
           style={{ height: "40px" }}
         ></div>
 
-        <div className="d-flex flex-column">
+        <div className="flex flex-col">
           <span
-            className={`small text-uppercase fw-bold ${
-              isDark ? "text-white opacity-75" : "text-muted"
+            className={`text-xs uppercase font-bold ${
+              isDark ? "text-gray-400" : "text-gray-500"
             }`}
             style={{ fontSize: "0.65rem", letterSpacing: "0.5px" }}
           >
             Taxable
           </span>
-          <span className="fw-semibold fs-6">₹{taxableValue.toFixed(2)}</span>
+          <span className="font-semibold text-lg">
+            ₹{taxableValue.toFixed(2)}
+          </span>
         </div>
 
-        <div className="d-flex flex-column">
+        <div className="flex flex-col">
           <span
-            className={`small text-uppercase fw-bold ${
-              isDark ? "text-white opacity-75" : "text-muted"
+            className={`text-xs uppercase font-bold ${
+              isDark ? "text-gray-400" : "text-gray-500"
             }`}
             style={{ fontSize: "0.65rem", letterSpacing: "0.5px" }}
           >
             Tax
           </span>
-          <span className="fw-semibold fs-6 text-danger">
+          <span className="font-semibold text-lg text-red-500">
             ₹{totalTax.toFixed(2)}
           </span>
         </div>
 
-        <div className="d-flex flex-column">
+        <div className="flex flex-col">
           <span
-            className={`small text-uppercase fw-bold ${
-              isDark ? "text-white opacity-75" : "text-muted"
+            className={`text-xs uppercase font-bold ${
+              isDark ? "text-gray-400" : "text-gray-500"
             }`}
             style={{ fontSize: "0.65rem", letterSpacing: "0.5px" }}
           >
             Discount
           </span>
-          <span className="fw-semibold fs-6 text-success">
+          <span className="font-semibold text-lg text-green-500">
             -₹{totalDiscount.toFixed(2)}
           </span>
         </div>
       </div>
 
       {/* Right: Grand Total & Pay Button */}
-      <div className="d-flex align-items-center gap-4">
-        <div className="text-end">
+      <div className="flex items-center gap-4">
+        <div className="text-right">
           <div
-            className={`small text-uppercase fw-bold ${
-              isDark ? "text-white opacity-75" : "text-muted"
+            className={`text-xs uppercase font-bold ${
+              isDark ? "text-gray-400" : "text-gray-500"
             }`}
             style={{ fontSize: "0.7rem", letterSpacing: "0.5px" }}
           >
             Grand Total
           </div>
           <div
-            className="fw-bold lh-1"
+            className="font-bold leading-none"
             style={{ fontSize: "1.8rem", color: isDark ? "#fff" : "#111" }}
           >
             ₹{grandTotal.toFixed(2)}

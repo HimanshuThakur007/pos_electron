@@ -62,6 +62,7 @@ interface PosActionButtonsProps {
   onShowTransactions: (filter?: string) => void;
   onHoldSale: () => void;
   onShowHeldSales: () => void;
+  onNewSale: () => void;
 }
 
 export default function PosActionButtons({
@@ -73,6 +74,7 @@ export default function PosActionButtons({
   onShowTransactions,
   onHoldSale,
   onShowHeldSales,
+  onNewSale,
 }: PosActionButtonsProps) {
   const buttons = [
     {
@@ -91,7 +93,7 @@ export default function PosActionButtons({
       label: "New Sale",
       icon: MdAddShoppingCart,
       color: "#10b981",
-      onClick: () => {},
+      onClick: onNewSale,
     },
     {
       label: "Today's Sales",
@@ -124,7 +126,7 @@ export default function PosActionButtons({
       onClick: () => setShowShortcuts(true),
     },
     {
-      label: "Calc (F6)",
+      label: "Calculator",
       icon: MdCalculate,
       color: "#64748b",
       onClick: () => setShowCalculator(true),
@@ -144,7 +146,7 @@ export default function PosActionButtons({
   ];
 
   return (
-    <div className="pos-actions px-2 py-2">
+    <div className="px-2 py-2">
       <div
         style={{
           display: "grid",
@@ -155,25 +157,19 @@ export default function PosActionButtons({
         {buttons.map((btn, idx) => (
           <button
             key={idx}
-            className="btn text-white shadow-sm d-flex flex-column align-items-center justify-content-center p-1 border-0"
+            className="text-white shadow-sm flex flex-col items-center justify-center p-1 border-0 hover:brightness-110 transition-all active:scale-95"
             style={{
               backgroundColor: btn.color,
               height: "65px",
               borderRadius: "6px",
-              transition: "transform 0.1s, filter 0.2s",
             }}
             onClick={btn.onClick}
-            onMouseDown={(e) =>
-              (e.currentTarget.style.transform = "scale(0.96)")
-            }
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
           >
             <div className="mb-1 opacity-90">
               <btn.icon size={20} />
             </div>
             <span
-              className="fw-semibold lh-1 text-center text-nowrap"
+              className="font-semibold leading-none text-center whitespace-nowrap"
               style={{ fontSize: "0.7rem" }}
             >
               {btn.label}
@@ -182,23 +178,18 @@ export default function PosActionButtons({
         ))}
 
         <button
-          className="btn text-white shadow-sm d-flex flex-column align-items-center justify-content-center p-1 border-0"
+          className="text-white shadow-sm flex flex-col items-center justify-center p-1 border-0 hover:brightness-110 transition-all active:scale-95"
           style={{
             backgroundColor: "#ef4444",
             height: "65px",
-            borderRadius: "6px",
-            transition: "transform 0.1s, filter 0.2s",
           }}
           onClick={onReprint}
-          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
-          onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
           <div className="mb-1 opacity-90">
             <MdPrint size={20} />
           </div>
           <span
-            className="fw-semibold lh-1 text-center"
+            className="font-semibold leading-none text-center"
             style={{ fontSize: "0.7rem" }}
           >
             Reprint

@@ -5,6 +5,7 @@ import crypto from "crypto";
 
 const getTableName = (fy_code) => `sl_head${fy_code}`;
 const getItemsTableName = (fy_code) => `sl_transaction${fy_code}`;
+const getMpmTableName = (fy_code) => `sl_mpm${fy_code}`;
 
 const stmtCache = {};
 const initializedFyCodes = new Set();
@@ -12,12 +13,32 @@ const initializedFyCodes = new Set();
 /* -------------------------------------------------------
    CREATE TABLES
 ------------------------------------------------------- */
+export const initSyncQueue = () => {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fy_code TEXT,
+        transaction_id INTEGER,
+        sync_attempts INTEGER DEFAULT 0,
+        status INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(fy_code, transaction_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status, sync_attempts);
+    `);
+  } catch (err) {}
+};
+
+initSyncQueue();
+
 export const initTransactionTables = (fy_code) => {
   if (!fy_code) return;
   if (initializedFyCodes.has(fy_code)) return;
 
   const TABLE = getTableName(fy_code);
   const ITEMS = getItemsTableName(fy_code);
+  const MPM = getMpmTableName(fy_code);
 
   try {
     db.exec(`
@@ -80,6 +101,39 @@ export const initTransactionTables = (fy_code) => {
         created_at TEXT DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS ${MPM} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_no TEXT,
+        customer_id INTEGER,
+        branch_code TEXT,
+        counter_code TEXT,
+        financial_year TEXT,
+        fin_year TEXT,
+        fy_code TEXT,
+        month_range TEXT,
+        hour_range TEXT,
+        mode TEXT,
+        amount REAL,
+        edc_terminal_id TEXT,
+        edc_tid TEXT,
+        edc_mid TEXT,
+        upi_vpa TEXT,
+        paytm_merchant_txn_id TEXT,
+        paytm_order_id TEXT,
+        paytm_rrn TEXT,
+        paytm_response_code TEXT,
+        paytm_response_msg TEXT,
+        rrn TEXT,
+        auth_code TEXT,
+        card_last4 TEXT,
+        status TEXT DEFAULT 'success',
+        synced INTEGER DEFAULT 0,
+        pos_created_at TEXT,
+        pos_bill_saved_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
       CREATE INDEX IF NOT EXISTS idx_sync_queue
       ON ${TABLE}(sync_status, id);
 
@@ -94,6 +148,15 @@ export const initTransactionTables = (fy_code) => {
 
       CREATE INDEX IF NOT EXISTS idx_items_txn
       ON ${ITEMS}(transaction_id);
+
+      CREATE INDEX IF NOT EXISTS idx_mpm_invoice_no
+      ON ${MPM}(invoice_no);
+
+      CREATE INDEX IF NOT EXISTS idx_mpm_branch_code
+      ON ${MPM}(branch_code);
+
+      CREATE INDEX IF NOT EXISTS idx_mpm_counter_code
+      ON ${MPM}(counter_code);
     `);
 
     console.log("✅ Transaction tables ready");
@@ -122,6 +185,14 @@ export const initTransactionTables = (fy_code) => {
     addCol(TABLE, "hour_range", "TEXT");
     addCol(TABLE, "fin_year", "TEXT");
     addCol(TABLE, "financial_year", "TEXT");
+
+    // Migration: Push any unsynced transactions to the new queue system
+    db.prepare(`
+      INSERT OR IGNORE INTO sync_queue (fy_code, transaction_id, sync_attempts, status)
+      SELECT ?, id, sync_attempts, CASE WHEN sync_status = 2 THEN 0 ELSE sync_status END
+      FROM ${TABLE}
+      WHERE sync_status IN (0, 2)
+    `).run(fy_code);
 
     initializedFyCodes.add(fy_code);
   } catch (err) {
@@ -247,6 +318,9 @@ export const insertTransactionSqlite = (data) => {
         financial_year
       );
     }
+
+    // 🚀 Add to Enterprise Queue System
+    db.prepare(`INSERT INTO sync_queue (fy_code, transaction_id) VALUES (?, ?)`).run(fy_code, txnId);
 
     return txnId;
   });
@@ -408,8 +482,9 @@ export const getLastTransactionSqlite = (filters = {}) => {
   const searchFilters = filters || {};
 
   // Safety: If branch_code is missing, return null to prevent leaking other branch data
-  if (!searchFilters.branch_code) {
-    return null;
+  // Exception: Allow if bill_no is provided (specific lookup)
+  if (!searchFilters.branch_code && !searchFilters.bill_no) {
+    return [];
   }
 
   if (searchFilters.branch_code) {
@@ -452,7 +527,8 @@ export const getTransactionsSqlite = (filters = {}) => {
   const searchFilters = filters || {};
 
   // Safety: If branch_code is missing, return empty to prevent leaking other branch data
-  if (!searchFilters.branch_code) {
+  // Exception: Allow if bill_no is provided (specific lookup)
+  if (!searchFilters.branch_code && !searchFilters.bill_no) {
     return [];
   }
 
@@ -471,6 +547,11 @@ export const getTransactionsSqlite = (filters = {}) => {
   } else if (searchFilters.cashier_id !== undefined && searchFilters.cashier_id !== null && searchFilters.cashier_id !== "") {
     conditions.push("cashier_id = ?");
     params.push(searchFilters.cashier_id);
+  }
+
+  if (searchFilters.bill_no) {
+    conditions.push("bill_no = ?");
+    params.push(searchFilters.bill_no);
   }
 
   if (conditions.length > 0) {
@@ -512,16 +593,27 @@ export const getPendingTransactions = (limit = 50, fy_code) => {
   if (!fy_code) return [];
   initTransactionTables(fy_code);
   const TABLE = getTableName(fy_code);
-  const key = `getPendingTxns_${fy_code}`;
-  if (!stmtCache[key]) {
-    stmtCache[key] = db.prepare(`
-      SELECT * FROM ${TABLE}
-      WHERE sync_status = 0
-      ORDER BY id ASC
-      LIMIT ?
-    `);
-  }
-  return stmtCache[key].all(limit);
+
+  // Fetch from the optimized sync_queue instead of scanning the full JSON-heavy table
+  const queueItems = db.prepare(`
+    SELECT transaction_id, sync_attempts FROM sync_queue
+    WHERE fy_code = ? AND status = 0 AND sync_attempts < 5
+    ORDER BY id ASC LIMIT ?
+  `).all(fy_code, limit);
+
+  if (!queueItems.length) return [];
+
+  const ids = queueItems.map(q => q.transaction_id);
+  const placeholders = ids.map(() => '?').join(',');
+
+  const rows = db.prepare(`SELECT * FROM ${TABLE} WHERE id IN (${placeholders})`).all(...ids);
+  
+  return rows.map(row => {
+    const parsed = parseTransaction(row);
+    const qItem = queueItems.find(q => q.transaction_id === row.id);
+    if (qItem) parsed.sync_attempts = qItem.sync_attempts; // Keep queue attempts as source of truth
+    return parsed;
+  });
 };
 
 /* -------------------------------------------------------
@@ -540,6 +632,39 @@ export const markTransactionSynced = (id, fy_code) => {
     `);
   }
   stmtCache[key].run(id);
+
+  // Remove from queue completely upon success
+  db.prepare(`DELETE FROM sync_queue WHERE fy_code = ? AND transaction_id = ?`).run(fy_code, id);
+};
+
+export const lockTransactionsSqlite = (ids, fy_code) => {
+  if (!fy_code || !ids || !ids.length) return;
+  const TABLE = getTableName(fy_code);
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(`
+    UPDATE ${TABLE}
+    SET sync_status = 2
+    WHERE id IN (${placeholders})
+  `).run(...ids);
+
+  // Lock in queue as well
+  db.prepare(`
+    UPDATE sync_queue SET status = 2
+    WHERE fy_code = ? AND transaction_id IN (${placeholders})
+  `).run(fy_code, ...ids);
+};
+
+export const resetStuckTransactionsSqlite = (fy_code) => {
+  if (!fy_code) return;
+  const TABLE = getTableName(fy_code);
+  try {
+    db.prepare(`UPDATE ${TABLE} SET sync_status = 0 WHERE sync_status = 2`).run();
+    
+    // Reset queue status
+    db.prepare(`UPDATE sync_queue SET status = 0 WHERE status = 2 AND fy_code = ?`).run(fy_code);
+  } catch (err) {
+    // Ignore if table does not exist yet (first launch)
+  }
 };
 
 export const incrementSyncAttempts = (id, fy_code) => {
@@ -558,6 +683,12 @@ export const incrementSyncAttempts = (id, fy_code) => {
     `);
   }
   stmtCache[key].run(id);
+
+  // Update queue failure count and release lock
+  db.prepare(`
+    UPDATE sync_queue SET sync_attempts = sync_attempts + 1, status = 0
+    WHERE fy_code = ? AND transaction_id = ?
+  `).run(fy_code, id);
 };
 
 /* -------------------------------------------------------
@@ -617,12 +748,16 @@ export const clearTransactionsSqlite = (fy_code) => {
   if (!fy_code) return;
   const TABLE = getTableName(fy_code);
   const ITEMS = getItemsTableName(fy_code);
+  const MPM = getMpmTableName(fy_code);
   try {
     db.transaction(() => {
       db.prepare(`DELETE FROM ${ITEMS}`).run();
       db.prepare(`DELETE FROM ${TABLE}`).run();
+      db.prepare(`DELETE FROM ${MPM}`).run();
       db.prepare(`DELETE FROM sqlite_sequence WHERE name='${ITEMS}'`).run();
       db.prepare(`DELETE FROM sqlite_sequence WHERE name='${TABLE}'`).run();
+      db.prepare(`DELETE FROM sqlite_sequence WHERE name='${MPM}'`).run();
+      db.prepare(`DELETE FROM sync_queue WHERE fy_code = ?`).run(fy_code);
     })();
   } catch (err) {
     console.error("❌ Clear Transactions Error:", err.message);
@@ -633,501 +768,3 @@ export const clearTransactionsSqlite = (fy_code) => {
    INIT
 ------------------------------------------------------- */
 // initTransactionTables(); // Now called explicitly with fy_code
-
-
-// import { db } from "../database/sqlite.js";
-// import fs from "fs";
-// import path from "path";
-// import crypto from "crypto";
-
-// const TABLE = "transactions";
-// const ITEMS = "transaction_items";
-
-// /* -------------------------------------------------------
-//    CREATE TABLES
-// ------------------------------------------------------- */
-// export const initTransactionTables = () => {
-//   try {
-//     db.exec(`
-//       CREATE TABLE IF NOT EXISTS ${TABLE} (
-//         id INTEGER PRIMARY KEY AUTOINCREMENT,
-//         bill_no TEXT,
-//         branch_code TEXT,
-//         terminal_code TEXT,
-//         cashier_id INTEGER,
-//         customer_name TEXT,
-//         customer_mobile TEXT,
-
-//         total_qty INTEGER,
-//         gross_amount REAL,
-//         total_discount REAL,
-//         taxable_value REAL,
-//         total_tax REAL,
-//         round_off REAL,
-//         grand_total REAL,
-
-//         payment_mode TEXT,
-//         amount_received REAL,
-//         transaction_ref TEXT,
-
-//         cart_items TEXT,
-//         time TEXT,
-//         integrity_hash TEXT,
-
-//         sync_status INTEGER DEFAULT 0,
-//         sync_attempts INTEGER DEFAULT 0,
-//         synced_at TEXT,
-//         created_at TEXT DEFAULT (datetime('now')),
-
-//         UNIQUE(bill_no, branch_code)
-//       );
-
-//       CREATE TABLE IF NOT EXISTS ${ITEMS} (
-//         id INTEGER PRIMARY KEY AUTOINCREMENT,
-//         transaction_id INTEGER,
-//         item_code TEXT,
-//         item_name TEXT,
-//         qty REAL,
-//         mrp REAL,
-//         rate REAL,
-//         discount REAL,
-//         tax REAL,
-//         total REAL,
-//         print_desc TEXT,
-//         schm_type TEXT,
-//         schm_camp_grp TEXT,
-//         created_at TEXT DEFAULT (datetime('now'))
-//       );
-
-//       CREATE INDEX IF NOT EXISTS idx_sync_queue
-//       ON ${TABLE}(sync_status, id);
-
-//       CREATE INDEX IF NOT EXISTS idx_bill_lookup
-//       ON ${TABLE}(bill_no);
-
-//       CREATE INDEX IF NOT EXISTS idx_branch
-//       ON ${TABLE}(branch_code);
-
-//       CREATE INDEX IF NOT EXISTS idx_created
-//       ON ${TABLE}(created_at);
-
-//       CREATE INDEX IF NOT EXISTS idx_items_txn
-//       ON ${ITEMS}(transaction_id);
-//     `);
-
-//     console.log("✅ Transaction tables ready");
-
-//     // Fix: Reset auto-increment counter if table is empty
-//     try {
-//       const rowCount = db.prepare(`SELECT COUNT(*) as count FROM ${TABLE}`).get();
-//       if (rowCount.count === 0) {
-//         db.prepare(`DELETE FROM sqlite_sequence WHERE name='${TABLE}'`).run();
-//       }
-//     } catch (e) {}
-
-//     // Migration: Add new columns if they don't exist
-//     const addCol = (tbl, col, type) => {
-//       try { db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${type}`).run(); } catch (e) {}
-//     };
-//     addCol(ITEMS, "print_desc", "TEXT");
-//     addCol(ITEMS, "schm_type", "TEXT");
-//     addCol(ITEMS, "schm_camp_grp", "TEXT");
-
-//   } catch (err) {
-//     console.error("❌ Table creation failed:", err.message);
-//   }
-// };
-
-// /* -------------------------------------------------------
-//    HASH GENERATOR (TAMPER PROTECTION)
-// ------------------------------------------------------- */
-// const generateHash = (data) => {
-//   const ordered = Object.keys(data)
-//     .sort()
-//     .reduce((obj, key) => {
-//       obj[key] = data[key];
-//       return obj;
-//     }, {});
-
-//   return crypto
-//     .createHash("sha256")
-//     .update(JSON.stringify(ordered))
-//     .digest("hex");
-// };
-
-// /* -------------------------------------------------------
-//    INSERT TRANSACTION (ATOMIC & SAFE)
-// ------------------------------------------------------- */
-// const insertTxnStmt = db.prepare(`
-//   INSERT INTO ${TABLE} (
-//       bill_no, branch_code, terminal_code, cashier_id,
-//       customer_name, customer_mobile,
-//       total_qty, gross_amount, total_discount,
-//       taxable_value, total_tax, round_off, grand_total,
-//       payment_mode, amount_received, transaction_ref,
-//       cart_items, time, integrity_hash
-//     )
-//     VALUES (
-//       @bill_no, @branch_code, @terminal_code, @cashier_id,
-//       @customer_name, @customer_mobile,
-//       @total_qty, @gross_amount, @total_discount,
-//       @taxable_value, @total_tax, @round_off, @grand_total,
-//       @payment_mode, @amount_received, @transaction_ref,
-//       @cart_items, @time, @integrity_hash
-//     )
-// `);
-
-// const insertItemStmt = db.prepare(`
-//   INSERT INTO ${ITEMS} (
-//       transaction_id, item_code, item_name,
-//       qty, mrp, rate, discount, tax, total,
-//       print_desc, schm_type, schm_camp_grp
-//     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-// `);
-
-// export const insertTransactionSqlite = (data) => {
-
-//   const payload = {
-//     ...data,
-//     cart_items: JSON.stringify(data.cart_items || []),
-//     time: new Date().toISOString(),
-//   };
-
-//   const hashData = {
-//     bill_no: payload.bill_no,
-//     branch_code: payload.branch_code,
-//     total_qty: payload.total_qty,
-//     grand_total: payload.grand_total,
-//     payment_mode: payload.payment_mode,
-//     cart_items: payload.cart_items,
-//     time: payload.time
-//   };
-
-//   payload.integrity_hash = generateHash(hashData);
-
-//   const trx = db.transaction(() => {
-//     const result = insertTxnStmt.run(payload);
-//     const txnId = result.lastInsertRowid;
-
-//     for (const item of data.cart_items || []) {
-//       insertItemStmt.run(
-//         txnId,
-//         item.itemCode,
-//         item.itemName,
-//         item.qty,
-//         item.mrp || 0,
-//         item.rate || item.price || 0,
-//         item.discount || 0,
-//         item.tax || 0,
-//         item.total || 0,
-//         item.printDesc || null,
-//         item.schm_type || null,
-//         item.schm_camp_grp || null
-//       );
-//     }
-
-//     return txnId;
-//   });
-
-//   try {
-//     return trx();
-//   } catch (err) {
-//     if (err.message.includes("UNIQUE")) {
-//       console.warn("Duplicate bill prevented");
-//       return null;
-//     }
-//     throw err;
-//   }
-// };
-
-// const insertSyncedTxnStmt = db.prepare(`
-//   INSERT INTO ${TABLE} (
-//       bill_no, branch_code, terminal_code, cashier_id,
-//       customer_name, customer_mobile,
-//       total_qty, gross_amount, total_discount,
-//       taxable_value, total_tax, round_off, grand_total,
-//       payment_mode, amount_received, transaction_ref,
-//       cart_items, time, integrity_hash,
-//       sync_status, synced_at
-//     )
-//     VALUES (
-//       @bill_no, @branch_code, @terminal_code, @cashier_id,
-//       @customer_name, @customer_mobile,
-//       @total_qty, @gross_amount, @total_discount,
-//       @taxable_value, @total_tax, @round_off, @grand_total,
-//       @payment_mode, @amount_received, @transaction_ref,
-//       @cart_items, @time, @integrity_hash,
-//       1, datetime('now')
-//     )
-// `);
-
-// export const insertSyncedTransactionSqlite = (data) => {
-
-//   const payload = {
-//     ...data,
-//     cart_items: typeof data.cart_items === 'string' ? data.cart_items : JSON.stringify(data.cart_items || []),
-//     time: data.time || new Date().toISOString(),
-//   };
-
-//   const hashData = {
-//     bill_no: payload.bill_no,
-//     branch_code: payload.branch_code,
-//     total_qty: payload.total_qty,
-//     grand_total: payload.grand_total,
-//     payment_mode: payload.payment_mode,
-//     cart_items: payload.cart_items,
-//     time: payload.time
-//   };
-
-//   if (!payload.integrity_hash) {
-//     payload.integrity_hash = generateHash(hashData);
-//   }
-
-//   const trx = db.transaction(() => {
-//     const result = insertSyncedTxnStmt.run(payload);
-//     const txnId = result.lastInsertRowid;
-
-//     const items = typeof data.cart_items === 'string' ? JSON.parse(data.cart_items) : (data.cart_items || []);
-
-//     for (const item of items) {
-//       insertItemStmt.run(
-//         txnId,
-//         item.itemCode,
-//         item.itemName,
-//         item.qty,
-//         item.mrp || 0,
-//         item.rate || item.price || 0,
-//         item.discount || 0,
-//         item.tax || 0,
-//         item.total || 0,
-//         item.printDesc || null,
-//         item.schm_type || null,
-//         item.schm_camp_grp || null
-//       );
-//     }
-
-//     return txnId;
-//   });
-
-//   try {
-//     return trx();
-//   } catch (err) {
-//     if (err.message.includes("UNIQUE")) {
-//       return null;
-//     }
-//     console.error("❌ Insert Synced Transaction Error:", err.message);
-//     return null;
-//   }
-// };
-
-// /* -------------------------------------------------------
-//    FETCH FUNCTIONS
-// ------------------------------------------------------- */
-// const parseTransaction = (row) => {
-//   if (!row) return null;
-//   try {
-//     row.cart_items = typeof row.cart_items === 'string' ? JSON.parse(row.cart_items) : row.cart_items;
-//   } catch (e) {
-//     row.cart_items = [];
-//   }
-//   return row;
-// };
-
-// export const getLastTransactionSqlite = (filters = {}) => {
-//   let query = `SELECT * FROM ${TABLE}`;
-//   const conditions = [];
-//   const params = [];
-
-//   const searchFilters = filters || {};
-
-//   // Safety: If branch_code is missing, return null to prevent leaking other branch data
-//   if (!searchFilters.branch_code) {
-//     return null;
-//   }
-
-//   if (searchFilters.branch_code) {
-//     conditions.push("branch_code = ?");
-//     params.push(searchFilters.branch_code);
-//   }
-//   if (searchFilters.terminal_code) {
-//     conditions.push("terminal_code = ?");
-//     params.push(searchFilters.terminal_code);
-//   }
-//   // Handle user_id (frontend) mapping to cashier_id (database)
-//   if (searchFilters.user_id !== undefined && searchFilters.user_id !== null && searchFilters.user_id !== "") {
-//     conditions.push("cashier_id = ?");
-//     params.push(searchFilters.user_id);
-//   } else if (searchFilters.cashier_id !== undefined && searchFilters.cashier_id !== null && searchFilters.cashier_id !== "") {
-//     conditions.push("cashier_id = ?");
-//     params.push(searchFilters.cashier_id);
-//   }
-  
-//   if (conditions.length > 0) {
-//     query += ` WHERE ${conditions.join(" AND ")}`;
-//   }
-
-//   query += " ORDER BY id DESC LIMIT 1";
-
-//   const row = db.prepare(query).get(...params);
-//   return parseTransaction(row);
-// };
-
-// export const getTransactionsSqlite = (filters = {}) => {
-//   let query = `SELECT * FROM ${TABLE}`;
-//   const conditions = [];
-//   const params = [];
-
-//   const searchFilters = filters || {};
-
-//   // Safety: If branch_code is missing, return empty to prevent leaking other branch data
-//   if (!searchFilters.branch_code) {
-//     return [];
-//   }
-
-//   if (searchFilters.branch_code) {
-//     conditions.push("branch_code = ?");
-//     params.push(searchFilters.branch_code);
-//   }
-//   if (searchFilters.terminal_code) {
-//     conditions.push("terminal_code = ?");
-//     params.push(searchFilters.terminal_code);
-//   }
-//   // Handle user_id (frontend) mapping to cashier_id (database)
-//   if (searchFilters.user_id !== undefined && searchFilters.user_id !== null && searchFilters.user_id !== "") {
-//     conditions.push("cashier_id = ?");
-//     params.push(searchFilters.user_id);
-//   } else if (searchFilters.cashier_id !== undefined && searchFilters.cashier_id !== null && searchFilters.cashier_id !== "") {
-//     conditions.push("cashier_id = ?");
-//     params.push(searchFilters.cashier_id);
-//   }
-
-//   if (conditions.length > 0) {
-//     query += ` WHERE ${conditions.join(" AND ")}`;
-//   }
-
-//   query += " ORDER BY id DESC";
-
-//   console.log("Executing Transaction Query:", query, params);
-//   const rows = db.prepare(query).all(...params);
-//   return rows.map(parseTransaction);
-// };
-
-// const getLastSyncedTxnStmt = db.prepare(`
-//   SELECT * FROM ${TABLE} 
-//   WHERE sync_status = 1 
-//   ORDER BY id DESC 
-//   LIMIT 1
-// `);
-// export const getLastSyncedTransaction = () =>
-//   getLastSyncedTxnStmt.get();
-
-// const getTxnCountStmt = db.prepare(`SELECT COUNT(*) as count FROM ${TABLE}`);
-// export const getTransactionCountSqlite = () => {
-//   const result = getTxnCountStmt.get();
-//   return result ? result.count : 0;
-// };
-
-// const getPendingTxnsStmt = db.prepare(`
-//   SELECT * FROM ${TABLE}
-//   WHERE sync_status = 0
-//   ORDER BY id ASC
-//   LIMIT ?
-// `);
-// export const getPendingTransactions = (limit = 50) =>
-//   getPendingTxnsStmt.all(limit);
-
-// /* -------------------------------------------------------
-//    SYNC MANAGEMENT
-// ------------------------------------------------------- */
-// const markSyncedStmt = db.prepare(`
-//   UPDATE ${TABLE}
-//   SET sync_status = 1,
-//       synced_at = datetime('now')
-//   WHERE id = ?
-// `);
-// export const markTransactionSynced = (id) => {
-//   markSyncedStmt.run(id);
-// };
-
-// const incSyncAttemptsStmt = db.prepare(`
-//   UPDATE ${TABLE}
-//   SET sync_attempts = sync_attempts + 1,
-//       sync_status = CASE
-//         WHEN sync_attempts >= 5 THEN -1
-//         ELSE 0
-//       END
-//   WHERE id = ?
-// `);
-// export const incrementSyncAttempts = (id) => {
-//   incSyncAttemptsStmt.run(id);
-// };
-
-// /* -------------------------------------------------------
-//    VERIFY DATA INTEGRITY
-// ------------------------------------------------------- */
-// export const verifyIntegrity = (txn) => {
-//   const hashData = {
-//     bill_no: txn.bill_no,
-//     branch_code: txn.branch_code,
-//     total_qty: txn.total_qty,
-//     grand_total: txn.grand_total,
-//     payment_mode: txn.payment_mode,
-//     cart_items: txn.cart_items,
-//     time: txn.time
-//   };
-
-//   return generateHash(hashData) === txn.integrity_hash;
-// };
-
-// /* -------------------------------------------------------
-//    ARCHIVE OLD SYNCED DATA
-// ------------------------------------------------------- */
-// const archiveStmt = db.prepare(`
-//   DELETE FROM ${TABLE}
-//   WHERE sync_status = 1
-//   AND created_at < datetime('now','-30 day')
-// `);
-// export const archiveOldTransactions = () => {
-//   archiveStmt.run();
-// };
-
-// /* -------------------------------------------------------
-//    BACKUP DATABASE (ROTATES LAST 7)
-// ------------------------------------------------------- */
-// export const backupDatabase = (dbPath) => {
-//   const backupDir = path.join(path.dirname(dbPath), "backup");
-//   if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir);
-
-//   const file = path.join(
-//     backupDir,
-//     `backup-${new Date().toISOString().slice(0,10)}.db`
-//   );
-
-//   fs.copyFileSync(dbPath, file);
-
-//   const files = fs.readdirSync(backupDir).sort();
-//   if (files.length > 7) {
-//     fs.unlinkSync(path.join(backupDir, files[0]));
-//   }
-// };
-
-// /* -------------------------------------------------------
-//    CLEAR TRANSACTIONS (RESET)
-// ------------------------------------------------------- */
-// export const clearTransactionsSqlite = () => {
-//   try {
-//     db.transaction(() => {
-//       db.prepare(`DELETE FROM ${ITEMS}`).run();
-//       db.prepare(`DELETE FROM ${TABLE}`).run();
-//       db.prepare(`DELETE FROM sqlite_sequence WHERE name='${ITEMS}'`).run();
-//       db.prepare(`DELETE FROM sqlite_sequence WHERE name='${TABLE}'`).run();
-//     })();
-//   } catch (err) {
-//     console.error("❌ Clear Transactions Error:", err.message);
-//   }
-// };
-
-// /* -------------------------------------------------------
-//    INIT
-// ------------------------------------------------------- */
-// initTransactionTables();

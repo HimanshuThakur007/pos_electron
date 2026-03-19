@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const { API_BASE_URL, API_BASE_URL2 } = require("./config.cjs");
+
 const posApi = {
+  apiBaseUrl: API_BASE_URL,
+  apiBaseUrl2: API_BASE_URL2,
   /**
    * Get item by item code
    * @param {string} code
@@ -111,6 +115,13 @@ const posApi = {
   },
 
   /**
+   * Sync a specific transaction manually
+   */
+  syncSpecificTransaction(bill_no, fy_code) {
+    return ipcRenderer.invoke("sync-specific-transaction", { bill_no, fy_code });
+  },
+
+  /**
    * Trigger manual invoice sync
    */
   triggerInvoiceSync() {
@@ -152,7 +163,54 @@ const posApi = {
     const subscription = (_event, status) => callback(status);
     ipcRenderer.on("sync-status-change", subscription);
     return () => ipcRenderer.removeListener("sync-status-change", subscription);
-  }
+  },
+
+  /**
+   * Get count of all pending sync items (transactions and invoices)
+   */
+  getPendingSyncCount(fy_code) {
+    return ipcRenderer.invoke("get-pending-sync-count", fy_code);
+  },
+
+  /**
+   * Persist login details for auto-resume on startup
+   */
+  setLoginDetails(details) {
+    return ipcRenderer.invoke("set-login-details", details);
+  },
+
+  /**
+   * Print receipt silently or save as PDF
+   */
+  // printReceipt(htmlContent) {
+  //   return ipcRenderer.invoke("print-receipt", htmlContent);
+  // }
+
+  printReceipt(htmlContent) {
+    if (!htmlContent || typeof htmlContent !== "string") {
+      return Promise.reject(new Error("Invalid HTML content"));
+    }
+    return ipcRenderer.invoke("print-receipt", htmlContent);
+  },
+
+  /**
+   * Print receipt using Raw ESC/POS for ultra-fast printing
+   * @param {object} data
+   */
+  printEscposReceipt(data) {
+    if (!data || typeof data !== "object") {
+      return Promise.reject(new Error("Invalid receipt data"));
+    }
+    return ipcRenderer.invoke("print-escpos-receipt", data);
+  },
+
+  /**
+   * Get unique device ID (SHA-256 hash of MAC address)
+   */
+  getDeviceId() {
+    return ipcRenderer.invoke("get-device-id");
+  },
+
 };
 
 // Expose API safely & immutably

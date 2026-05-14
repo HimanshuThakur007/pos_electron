@@ -6,9 +6,11 @@ import {
   createNewItem,
   validateStock,
 } from "../utils/posUtils";
+import toast from "react-hot-toast";
 
 export function usePosCart(
   scanInputRef: React.RefObject<HTMLInputElement | null>,
+  userDetails?: any,
 ) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -46,11 +48,14 @@ export function usePosCart(
 
         const stock = Number(product.Stock_Qty) || 0;
         if (stock < 1) {
-          alert("Out of stock!");
+          toast.error("Out of stock!");
           setTimeout(() => scanInputRef.current?.focus(), 100);
           return prev;
         }
-        return recalculateCart([...prev, createNewItem(product)]);
+
+        const newItem = createNewItem(product);
+        newItem.hsn_code = product.hsn_code || ""; // Explicitly retain hsn_code
+        return recalculateCart([...prev, newItem]);
       });
     },
     [scanInputRef],
@@ -58,10 +63,25 @@ export function usePosCart(
 
   const removeFromCart = useCallback(
     (id: string) => {
+      const itemToDelete = cart.find((item) => item.id === id);
+
+      if (itemToDelete) {
+        const logData = {
+          ...itemToDelete,
+          branchCode: userDetails?.branchCode,
+          terminalCode: userDetails?.terminalCode,
+          cashierId: userDetails?.userId,
+        };
+
+        if ((window as any).posApi?.logDeletedItem) {
+          (window as any).posApi.logDeletedItem(logData).catch(console.error);
+        }
+      }
+
       setCart((prev) => recalculateCart(prev.filter((item) => item.id !== id)));
       setTimeout(() => scanInputRef.current?.focus(), 0);
     },
-    [scanInputRef],
+    [cart, scanInputRef, userDetails],
   );
 
   const clearCart = useCallback(() => {
@@ -135,7 +155,7 @@ export function usePosCart(
     const roundOff = roundedGrandTotal - grandTotal;
     const totalPPAmount = cart.reduce(
       (acc, item) =>
-        isPPScheme(item.schm_type, item.schm_camp_grp)
+        isPPScheme(item.schm_type, item.schm_camp_grp, item.group_name)
           ? acc + item.price * item.qty
           : acc,
       0,

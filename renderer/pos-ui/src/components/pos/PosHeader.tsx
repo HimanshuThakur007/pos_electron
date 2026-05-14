@@ -20,6 +20,7 @@ interface PosHeaderProps {
   toggleTheme: () => void;
   onLogout?: () => void;
   onOpenSettings: () => void;
+  onEndDayClick?: () => void;
 }
 
 export default function PosHeader({
@@ -29,6 +30,7 @@ export default function PosHeader({
   toggleTheme,
   onLogout,
   onOpenSettings,
+  onEndDayClick,
 }: PosHeaderProps) {
   return (
     <div
@@ -118,6 +120,15 @@ export default function PosHeader({
             <MdPerson size={20} />
           </div>
         </div>
+
+        <button
+          className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-colors text-sm font-medium ${theme === "light" ? "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100" : "bg-amber-900/30 text-amber-500 border-amber-800 hover:bg-amber-900/50"}`}
+          onClick={onEndDayClick}
+          title="End Day"
+        >
+          <MdStore size={16} />
+          <span className="hidden lg:inline">End Day</span>
+        </button>
 
         <button
           className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors ms-2 text-sm font-medium"

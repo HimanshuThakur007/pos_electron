@@ -1,42 +1,48 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePosCart } from "./usePosCart";
+import { type CartItem } from "../utils/posUtils";
 import { usePosSearch } from "./usePosSearch";
 import { usePosBilling } from "./usePosBilling";
 import { usePosKeyboard } from "./usePosKeyboard";
+import { useUserDetails } from "./useUserDetails";
+import { useSystemState } from "./useSystemState";
+import { useCustomerDisplay } from "./useCustomerDisplay";
+import { useAuth } from "../context/AuthContext";
 
-export function usePosLogic(onLogout?: () => void) {
-  // --- UI/System State ---
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+interface PosLogicOptions {
+  isB2B?: boolean;
+}
+
+export function usePosLogic(onLogout?: () => void, options?: PosLogicOptions) {
+  const isB2B = options?.isB2B || false;
+
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [syncStatus, setSyncStatus] = useState("idle");
-  const [manualMode, setManualMode] = useState("online");
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [transactionMode, setTransactionMode] = useState<string | undefined>();
+  const [itemToDelete, setItemToDelete] = useState<CartItem | null>(null);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
-
-  // --- User & Branch Info ---
-  const [userDetails, setUserDetails] = useState({
-    branchName: "MARKET NINETY NINE PVT LTD",
-    branchCode: "",
-    userName: "User",
-    userRole: "Role",
-    userId: "0",
-    terminalCode: "A",
-    fyCode: "",
-  });
-
-  const [branchInfo, setBranchInfo] = useState({
-    address: "",
-    gstin: "",
-    phoneNo: "",
-  });
-
-  const [customerWindow, setCustomerWindow] = useState<Window | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  // --- Initialize Hooks ---
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customerKeyword, setCustomerKeyword] = useState("");
+
+  const { userDetails, branchInfo } = useUserDetails();
+  const { customerWindow, openCustomerDisplay } = useCustomerDisplay();
+  const { isServerOnline, isNetworkOnline } = useAuth();
+  const {
+    theme,
+    toggleTheme,
+    syncStatus,
+    manualMode,
+    setManualMode,
+    currentTime,
+    handleLogout,
+    handleSyncTransaction,
+  } = useSystemState(userDetails.fyCode, onLogout);
+
+  const isOnline = isServerOnline;
+
   const {
     cart,
     setCart,
@@ -53,7 +59,9 @@ export function usePosLogic(onLogout?: () => void) {
     setTableFocusTrigger,
     qtyFocusTrigger,
     setQtyFocusTrigger,
-  } = usePosCart(scanInputRef);
+  } = usePosCart(scanInputRef, userDetails);
+
+  const lastAddedItemCode = useRef<string | null>(null);
 
   const {
     searchTerm,
@@ -65,20 +73,23 @@ export function usePosLogic(onLogout?: () => void) {
     handleScan,
     handleProductSelect,
     handleCloseSearchResults,
-  } = usePosSearch(addToCart, scanInputRef);
+  } = usePosSearch((product) => {
+    lastAddedItemCode.current = product.itemCode;
+    addToCart(product);
+  }, scanInputRef);
 
   const {
     handleSaveBill,
     handleHoldSale,
+    handleNewSale,
     handleFetchHeldSales,
     handleResumeHeldSale,
     handlePrintReceipt,
-    handleShowTransactions,
+    handleShowTransactions: baseShowTransactions,
     handleReprint,
     handleReprintBill,
     generateInvoiceNumber,
     transactions,
-    // setTransactions,
     showTransactions,
     setShowTransactions,
     heldSales,
@@ -89,6 +100,7 @@ export function usePosLogic(onLogout?: () => void) {
     invoiceCounter,
     lastBill,
     printBillData,
+    isInvoiceLoading,
     showReprintModal,
     setShowReprintModal,
     reprintTransactions,
@@ -102,198 +114,42 @@ export function usePosLogic(onLogout?: () => void) {
     setSearchTerm,
     setCart,
     scanInputRef,
+    selectedCustomer,
+    setSelectedCustomer,
+    setCustomerKeyword,
+    isB2B,
+    customerKeyword,
   );
 
-  // --- Common Effects ---
-
-  useEffect(() => {
-    setUserDetails({
-      branchName:
-        localStorage.getItem("branch_name") || "MARKET NINETY NINE PVT LTD",
-      branchCode: localStorage.getItem("branch_code") || "",
-      userName: localStorage.getItem("user_name") || "User",
-      userRole: localStorage.getItem("user_role") || "Role",
-      userId: localStorage.getItem("user_id") || "0",
-      terminalCode: localStorage.getItem("terminal_code") || "A",
-      fyCode: localStorage.getItem("fy_code") || "",
-    });
-
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const handleShowTransactions = useCallback(
+    (filter?: string) => {
+      setTransactionMode(filter);
+      baseShowTransactions(filter);
+    },
+    [baseShowTransactions],
+  );
 
   useEffect(() => {
     scanInputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
-    return () => document.body.removeAttribute("data-theme");
-  }, [theme]);
-
-  // --- Network Sync ---
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      if (window.posApi) {
-        window.posApi.triggerBackgroundSync(localStorage.getItem("fy_code"));
-      }
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    let unsubscribe = () => {};
-    if (window.posApi && window.posApi.onSyncStatusChange) {
-      unsubscribe = window.posApi.onSyncStatusChange((status) =>
-        setSyncStatus(status),
+    if (lastAddedItemCode.current) {
+      const newIndex = cart.findIndex(
+        (item) => item.itemCode === lastAddedItemCode.current,
       );
-    }
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (userDetails.fyCode && window.posApi) {
-      window.posApi.triggerBackgroundSync(userDetails.fyCode);
-    }
-  }, [userDetails.fyCode]);
-
-  // --- Fetch Branch Info ---
-  useEffect(() => {
-    const fetchBranchData = async () => {
-      try {
-        if (window.posApi && window.posApi.getBranches) {
-          const branches = await window.posApi.getBranches();
-          const branch = branches.find(
-            (b: any) =>
-              String(b.branchCode) === String(userDetails.branchCode) ||
-              String(b.Branch_Code) === String(userDetails.branchCode),
-          );
-          if (branch) {
-            setBranchInfo({
-              address: branch.Address || "",
-              gstin: branch.Gst_Number || "",
-              phoneNo: branch.branch_Phone_Number || "",
-            });
-          }
-        }
-      } catch (e) {
-        console.error("Failed to fetch branch info", e);
+      if (newIndex > -1) {
+        setSelectedIndex(newIndex);
       }
-    };
-    if (userDetails.branchCode) {
-      fetchBranchData();
+      lastAddedItemCode.current = null;
     }
-  }, [userDetails.branchCode]);
-
-  // --- Handlers ---
-
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  }, []);
+  }, [cart, setSelectedIndex]);
 
   const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
   const handleCloseCalculator = useCallback(() => setShowCalculator(false), []);
-
-  const handleLogout = useCallback(async () => {
-    if (window.posApi && (window.posApi as any).getPendingSyncCount) {
-      try {
-        const pendingCount = await (window.posApi as any).getPendingSyncCount(
-          userDetails.fyCode,
-        );
-        if (pendingCount > 0) {
-          alert(
-            `Cannot log out. ${pendingCount} item(s) have not been synced.`,
-          );
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to check for pending transactions:", error);
-      }
-    }
-    onLogout?.();
-  }, [onLogout, userDetails.fyCode]);
-
-  const handleSyncTransaction = useCallback(
-    async (tx: any) => {
-      if (window.posApi && window.posApi.syncSpecificTransaction) {
-        try {
-          const res = await window.posApi.syncSpecificTransaction(
-            tx.bill_no,
-            tx.fin_year || userDetails.fyCode,
-          );
-          if (res.status === "success") {
-            alert("Transaction synced successfully!");
-            handleShowTransactions();
-          } else {
-            alert("Sync failed: " + (res.message || "Unknown error"));
-          }
-        } catch (e: any) {
-          alert("Sync failed: " + e.message);
-        }
-      }
-    },
-    [userDetails.fyCode, handleShowTransactions],
-  );
-
-  // --- Customer Display ---
-  const openCustomerDisplay = useCallback(() => {
-    if (customerWindow && !customerWindow.closed) {
-      customerWindow.focus();
-      return;
-    }
-    const width = 1024;
-    const height = 768;
-    const left = window.screen.width;
-    const top = 0;
-
-    const win = window.open(
-      "",
-      "CustomerDisplay",
-      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
-    );
-
-    if (win) {
-      Array.from(document.styleSheets).forEach((styleSheet) => {
-        try {
-          if (styleSheet.href) {
-            const link = win.document.createElement("link");
-            link.rel = "stylesheet";
-            link.href = styleSheet.href;
-            win.document.head.appendChild(link);
-          } else if (styleSheet.cssRules) {
-            const style = win.document.createElement("style");
-            Array.from(styleSheet.cssRules).forEach((rule) => {
-              style.appendChild(win.document.createTextNode(rule.cssText));
-            });
-            win.document.head.appendChild(style);
-          }
-        } catch (e) {
-          console.warn("Could not copy stylesheet", e);
-        }
-      });
-      win.document.title = "Customer Display - Market99";
-      setCustomerWindow(win);
-      win.onbeforeunload = () => {
-        setCustomerWindow(null);
-      };
-    }
-  }, [customerWindow]);
-
-  useEffect(() => {
-    return () => {
-      if (customerWindow) {
-        customerWindow.close();
-      }
-    };
-  }, [customerWindow]);
+  const handleOpenPayment = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("openPaymentModal"));
+  }, []);
 
   // --- Keyboard Shortcuts ---
 
@@ -306,6 +162,7 @@ export function usePosLogic(onLogout?: () => void) {
     clearCart,
     totals,
     handleSaveBill,
+    selectedCustomer,
     searchResults,
     setSearchResults,
     scanInputRef,
@@ -324,6 +181,8 @@ export function usePosLogic(onLogout?: () => void) {
     handleLogout,
     setTableFocusTrigger,
     setQtyFocusTrigger,
+    setItemToDelete,
+    handleOpenPayment,
   });
 
   return {
@@ -355,6 +214,8 @@ export function usePosLogic(onLogout?: () => void) {
     tableFocusTrigger,
     qtyFocusTrigger,
     isOnline,
+    isServerOnline,
+    isNetworkOnline,
     syncStatus,
     netOffline: !isOnline,
     manualMode,
@@ -380,9 +241,12 @@ export function usePosLogic(onLogout?: () => void) {
     transactions,
     handleSyncTransaction,
     handleShowTransactions,
+    transactionMode,
     generateInvoiceNumber,
+    isInvoiceLoading,
     handleSaveBill,
     handleHoldSale,
+    handleNewSale,
     handleFetchHeldSales,
     handleResumeHeldSale,
     heldSales,
@@ -392,6 +256,12 @@ export function usePosLogic(onLogout?: () => void) {
     showHoldNoteModal,
     setShowHoldNoteModal,
     printBillData,
+    selectedCustomer,
+    setSelectedCustomer,
+    customerKeyword,
+    setCustomerKeyword,
+    itemToDelete,
+    setItemToDelete,
     onLogout: handleLogout,
     ...totals,
   };

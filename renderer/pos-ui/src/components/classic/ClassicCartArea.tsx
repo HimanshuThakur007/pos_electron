@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
-  X,
+  // X,
   Plus,
   Minus,
   ReceiptText,
   ShoppingCart,
+  // Delete,
+  Trash2,
 } from "lucide-react";
 import { getSchemeColor, getDisplayScheme } from "../../utils/posUtils";
 
@@ -47,12 +49,31 @@ interface ClassicCartAreaProps {
   highlightRowId?: string | number;
   selectedRowIndex?: number;
   setSelectedRowIndex?: (index: number) => void;
-  removeFromCart?: (itemCode: string) => void;
+  removeFromCart?: (id: string) => void;
   updateQty?: (id: string, delta: number) => void;
   handleQtyChange?: (id: string, val: string) => void;
   handleQtyBlur?: (id: string, qty: number) => void;
   qtyFocusTrigger?: number;
   tableFocusTrigger?: number;
+}
+
+function ShortcutChip({
+  shortcut,
+  label,
+}: {
+  shortcut: string;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <kbd className="px-1.5 py-0.5 text-[10px] tracking-wide font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded">
+        {shortcut}
+      </kbd>
+      <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 export default function ClassicCartArea({
@@ -81,6 +102,58 @@ export default function ClassicCartArea({
 }: ClassicCartAreaProps) {
   const cartCount = Array.isArray(cart) ? cart.length : 0;
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  const isMac = useMemo(
+    () => navigator.userAgent.toUpperCase().indexOf("MAC") >= 0,
+    [],
+  );
+
+  const renderInvoiceNumber = (invoice?: string) => {
+    if (!invoice) {
+      return <span className="opacity-70">Loading...</span>;
+    }
+    if (invoice === "0") {
+      return <span className="text-base opacity-70">0</span>;
+    }
+
+    const invoiceSuffix = invoice.slice(-6);
+    // Find the index of the first character that is NOT a zero.
+    const firstNonZeroIndex = invoiceSuffix.search(/[^0]/);
+
+    // If no non-zero character is found (e.g., "000000"), render all small.
+    if (firstNonZeroIndex === -1) {
+      return (
+        <span className="text-base opacity-70 tracking-tighter">
+          {invoiceSuffix}
+        </span>
+      );
+    }
+
+    // If the number starts with a non-zero (e.g., "123456"), render normally.
+    if (firstNonZeroIndex === 0) {
+      return <span>{invoiceSuffix}</span>;
+    }
+
+    // Split into leading zeros and the rest of the number (e.g., "000123").
+    const zeros = invoiceSuffix.substring(0, firstNonZeroIndex);
+    const numberPart = invoiceSuffix.substring(firstNonZeroIndex);
+
+    return (
+      <>
+        <span className="text-base opacity-70 tracking-tighter">{zeros}</span>
+        <span>{numberPart}</span>
+      </>
+    );
+  };
+
+  // Get header height for scroll padding
+  useEffect(() => {
+    if (headerRef.current) {
+      setHeaderHeight(headerRef.current.offsetHeight);
+    }
+  }, []);
 
   // Scroll selected row into view
   useEffect(() => {
@@ -151,7 +224,7 @@ export default function ClassicCartArea({
             value={barcode}
             onChange={(e) => setBarcode?.(e.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="Scan barcode or search product by name/SKU..."
+            placeholder="Scan barcode or search product by ItemCode..."
             className="w-full h-11 rounded-xl border border-[#D6DEE9] bg-white px-4 pr-36 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C9D5F7] focus:border-[#BFD0F7] shadow-sm"
           />
 
@@ -161,23 +234,28 @@ export default function ClassicCartArea({
               if (!barcode?.trim()) return;
               handleScan?.({ key: "Enter", target: { value: barcode } } as any);
             }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 rounded-lg bg-gradient-to-r from-[#667BE5] via-[#6D66CA] to-[#744FA9] text-white px-4 text-xs font-bold hover:brightness-105 active:scale-[0.99] transition flex items-center gap-1.5 shadow-sm"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 rounded-lg bg-blue-600 text-white px-4 text-xs font-bold hover:bg-blue-700 active:scale-[0.99] transition flex items-center gap-1.5 shadow-sm"
           >
             <Search size={14} />
             SEARCH
           </button>
         </div>
 
-        <button
-          type="button"
-          className="shrink-0 h-11 rounded-xl border border-[#BFE8CC] bg-[#EFFBF3] px-4 text-[#15924F] text-sm font-semibold flex items-center gap-2 shadow-sm"
-          title="Scanner status"
-        >
-          <ReceiptText size={14} className="text-[#667BE5]" />
-          <span className="text-xs font-bold font-mono">
-            {previewInvoice || "Loading..."}
-          </span>
-        </button>
+        <div className="relative group">
+          <button
+            type="button"
+            className="shrink-0 h-11 rounded-xl border border-[#BFE8CC] bg-[#EFFBF3] px-4 text-[#15924F] text-sm font-semibold flex items-center gap-2 shadow-sm"
+          >
+            <ReceiptText size={16} className="text-blue-600" />
+            <span className="text-xl font-bold font-mono flex items-baseline">
+              {renderInvoiceNumber(previewInvoice)}
+            </span>
+          </button>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+            Invoice No :- {previewInvoice}
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-x-4 border-x-transparent border-b-4 border-b-slate-800"></div>
+          </div>
+        </div>
       </div>
 
       {/* Main Cart Card */}
@@ -185,52 +263,55 @@ export default function ClassicCartArea({
         {/* Cart Title Row */}
         <div className="px-3 py-3 border-b border-[#E8EDF4] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <ShoppingCart size={18} className="text-[#667BE5]" />
+            <ShoppingCart size={18} className="text-blue-600" />
             <div className="font-bold text-slate-900 text-sm">Cart Items</div>
-            <div className="min-w-6 h-6 px-2 rounded-full bg-[#6F86F8] text-white text-xs font-bold flex items-center justify-center">
+            <div className="min-w-6 h-6 px-2 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
               {cartCount}
             </div>
           </div>
 
-          {/* <div className="flex items-center gap-2"> */}
-          {/* Invoice badge */}
-          {/* <div className="hidden lg:flex rounded-xl border border-[#D9E2F0] bg-[#F8FAFC] text-slate-700 px-3 py-2 items-center gap-2">
-                            
-                        </div> */}
-          {/* </div> */}
+          <div className="hidden xl:flex items-center gap-3.5">
+            <ShortcutChip shortcut="↑ / ↓" label="Navigate" />
+            <ShortcutChip
+              shortcut={`${isMac ? "⌥" : "Alt"} Q`}
+              label="Focus Qty"
+            />
+            <ShortcutChip
+              shortcut={`${isMac ? "⌥" : "Alt"} I`}
+              label="Increase Qty"
+            />
+            <ShortcutChip
+              shortcut={`${isMac ? "⌥" : "Alt"} D`}
+              label="Decrease Qty"
+            />
+            <ShortcutChip shortcut="Shift D" label="Delete Item" />
+          </div>
         </div>
 
         {/* Cart Grid Area */}
         <div
           ref={cartContainerRef}
           className="flex-1 min-h-0 bg-slate-50 overflow-auto relative"
+          style={{
+            scrollPaddingTop: headerHeight ? `${headerHeight}px` : "45px",
+          }}
         >
           {/* Sticky Table Header */}
           <div
-            className="sticky top-0 z-20 grid bg-gradient-to-r from-[#667BE5] via-[#6D66CA] to-[#744FA9] text-white text-xs px-2 py-3 font-bold shadow-sm"
+            ref={headerRef}
+            className="sticky top-0 z-20 grid bg-gradient-to-r from-[#0F203C] via-[#132744] to-[#172E4E] text-white text-xs px-2 py-3 font-bold shadow-sm"
             style={{ gridTemplateColumns: gridTemplate }}
           >
             <div></div>
             <div>PRODUCT DETAILS</div>
-            <div>SCHEME</div>
-            <div>STOCK</div>
+            <div className="text-center">SCHEME</div>
+            <div className="text-center">STOCK</div>
             <div className="text-center">QTY</div>
             <div className="text-right">PRICE</div>
             <div className="text-right">DISC</div>
             <div className="text-right">TAX</div>
             <div className="text-right">SUB TOTAL</div>
           </div>
-
-          {!posReady && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-xs text-slate-600 font-medium">
-                  Initializing POS...
-                </div>
-              </div>
-            </div>
-          )}
 
           {posReady && cart.length === 0 && (
             <div className="flex flex-col items-center justify-center text-slate-400 gap-2 h-[calc(100%-45px)]">
@@ -269,13 +350,13 @@ export default function ClassicCartArea({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeFromCart?.(row.item_code);
+                      removeFromCart?.(String(row._rowId));
                     }}
                     className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
                     title="Remove item"
                     type="button"
                   >
-                    <X size={14} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
 
@@ -288,21 +369,21 @@ export default function ClassicCartArea({
                     {row.item_code}
                   </div>
 
-                  <div className="text-[11px] text-slate-700 flex items-center gap-1 flex-wrap">
-                    <span className="italic font-mono">{row.item_name}</span>
+                  <div className="text-[11px] text-slate-700">
+                    <span className="">{row.item_name}</span>
                     {row.printDesc && (
                       <>
-                        <span>|</span>
-                        <span className="italic truncate">{row.printDesc}</span>
+                        <span className="mx-1">|</span>
+                        <span className="">{row.printDesc}</span>
                       </>
                     )}
-                    {getDisplayScheme(row as any) !== "-" && (
+                    {/* {getDisplayScheme(row as any) !== "-" && (
                       <span
                         className={`text-[10px] ${getSchemeColor(row as any)}`}
                       >
                         {getDisplayScheme(row as any)}
                       </span>
-                    )}
+                    )} */}
                     {row.missingQualifyingAmount &&
                       row.missingQualifyingAmount > 0 && (
                         <div className="text-amber-600 mt-1 flex items-center gap-1 text-[10px] font-medium w-full">
@@ -318,7 +399,7 @@ export default function ClassicCartArea({
                 {/* Scheme */}
                 <div className="flex flex-col items-center justify-center">
                   <span
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    className={`px-2 py-0.5 text-[10px] font-bold text-center rounded-full ${
                       getSchemeColor(row as any).includes("text-green-600")
                         ? "bg-green-100 text-green-700"
                         : getSchemeColor(row as any).includes("text-red-600")

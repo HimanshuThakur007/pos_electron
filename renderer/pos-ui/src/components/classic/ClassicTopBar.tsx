@@ -12,8 +12,14 @@ interface ClassicTopBarProps {
   displayWindow?: boolean;
   onOpenSettings: () => void;
   netOffline?: boolean;
+  isServerOnline?: boolean;
+  isNetworkOnline?: boolean;
   netMsg?: string;
   netBackOnline?: boolean;
+  manualMode?: string;
+  setManualMode?: (mode: string) => void;
+  isB2B?: boolean;
+  onEndDayClick?: () => void;
 }
 
 export default function ClassicTopBar({
@@ -31,8 +37,14 @@ export default function ClassicTopBar({
 
   // connectivity
   netOffline,
+  isServerOnline,
+  isNetworkOnline,
   netMsg,
   netBackOnline,
+  manualMode,
+  setManualMode,
+  isB2B,
+  onEndDayClick,
 }: ClassicTopBarProps) {
   return (
     <>
@@ -48,8 +60,14 @@ export default function ClassicTopBar({
         displayWindow={displayWindow}
         onOpenSettings={onOpenSettings}
         netOffline={netOffline}
+        isServerOnline={isServerOnline}
+        isNetworkOnline={isNetworkOnline}
         netMsg={netMsg}
         netBackOnline={netBackOnline}
+        manualMode={manualMode}
+        setManualMode={setManualMode}
+        isB2B={isB2B}
+        onEndDayClick={onEndDayClick}
       />
     </>
   );

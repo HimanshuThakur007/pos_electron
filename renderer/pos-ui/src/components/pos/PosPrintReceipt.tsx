@@ -28,6 +28,7 @@ export interface PosPrintReceiptProps {
     customerMobile?: string;
     paymentMode?: string;
     transactionRef?: string;
+    tax_region?: string;
   };
   cart: PrintCartItem[];
   totals: {
@@ -334,8 +335,14 @@ export const PosPrintReceipt = React.forwardRef<
       <div className="flex text-[10px] border-b border-black">
         <div className="flex-1">Rate</div>
         <div className="flex-[2] text-right">Taxable</div>
-        <div className="flex-[2] text-right">CGST</div>
-        <div className="flex-[2] text-right">SGST</div>
+        {billDetails?.tax_region === "IGST" ? (
+          <div className="flex-[4] text-right">IGST</div>
+        ) : (
+          <>
+            <div className="flex-[2] text-right">CGST</div>
+            <div className="flex-[2] text-right">SGST</div>
+          </>
+        )}
         <div className="flex-[2] text-right">Total</div>
       </div>
       {Object.keys(gstMap).map((key) => {
@@ -345,8 +352,18 @@ export const PosPrintReceipt = React.forwardRef<
           <div key={key} className="flex text-[10px]">
             <div className="flex-1">{rate}%</div>
             <div className="flex-[2] text-right">{taxable.toFixed(2)}</div>
-            <div className="flex-[2] text-right">{(tax / 2).toFixed(2)}</div>
-            <div className="flex-[2] text-right">{(tax / 2).toFixed(2)}</div>
+            {billDetails?.tax_region === "IGST" ? (
+              <div className="flex-[4] text-right">{tax.toFixed(2)}</div>
+            ) : (
+              <>
+                <div className="flex-[2] text-right">
+                  {(tax / 2).toFixed(2)}
+                </div>
+                <div className="flex-[2] text-right">
+                  {(tax / 2).toFixed(2)}
+                </div>
+              </>
+            )}
             <div className="flex-[2] text-right">
               {(taxable + tax).toFixed(2)}
             </div>

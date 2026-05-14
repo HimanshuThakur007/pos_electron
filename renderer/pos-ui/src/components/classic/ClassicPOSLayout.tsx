@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
-import SettingsModal from "../pos/SettingsModal";
+import React, { useState, useMemo, useEffect } from "react";
+import SettingsModal from "../modals/SettingsModal";
 import ClassicTopBar from "./ClassicTopBar";
 import ClassicCartArea from "./ClassicCartArea";
 import ClassicRightPanel from "./ClassicRightPanel";
 import ClassicLastBillFooter from "./ClassicLastBillFooter";
+import ClassicPaymentModal from "../modals/ClassicPaymentModal";
 import ClassicQuickActionsPanel from "./ClassicQuickActionsPanel";
 import {
   Plus,
@@ -16,6 +17,8 @@ import {
   RefreshCw,
   TrendingUp,
 } from "lucide-react";
+// import { usePosContext } from "../../context/PosContext";
+import { usePosContext } from "../../context/PosContext";
 
 export interface PosUserDetails {
   id?: string;
@@ -42,7 +45,9 @@ export interface PosCartItem {
   missingQualifyingAmount?: number;
   schm_type?: string | number;
   schm_camp_grp?: string;
+  group_name?: string;
   appliedQty?: number;
+  hsn_code?: string;
 }
 
 export interface PosLastBill {
@@ -56,126 +61,118 @@ export interface PosLastBill {
 }
 
 interface ClassicPOSLayoutProps {
-  // Header Data
-  userDetails: PosUserDetails | null;
-  currentTime: Date;
-  onLogout?: () => void;
   uiVariant: string;
   changeUIVariant: (variant: string) => void;
   printFormat?: string;
   changePrintFormat?: (format: string) => void;
-  isOnline: boolean;
-  syncStatus: string;
-  netOffline?: boolean;
-  manualMode?: string;
-  setManualMode?: (mode: string) => void;
-
-  // Cart Data
-  cart: PosCartItem[];
-  scanInputRef: React.RefObject<HTMLInputElement | null>;
-  searchTerm: string;
-  setSearchTerm: (term: string) => void;
-  handleScan: (
-    e:
-      | React.KeyboardEvent<HTMLInputElement>
-      | { key: string; target: { value: string } },
-  ) => void;
-  searchProduct: () => void;
-  invoiceNumber: string;
-  removeFromCart: (id: string) => void;
-  updateQty: (id: string, delta: number) => void;
-  handleQtyChange: (id: string, val: string) => void;
-  handleQtyBlur: (id: string, qty: number) => void;
-
-  // Totals
-  totalQty: number;
-  grossAmount: number;
-  totalDiscount: number;
-  taxableValue: number;
-  totalTax: number;
-  grandTotal: number;
-  roundedGrandTotal: number;
-  roundOff: number;
-
-  // Actions
-  handleSaveBill: (
-    mode: string,
-    amount: number,
-    ref?: string,
-  ) => Promise<boolean>;
-  handleHoldSale: (note: string) => void;
-  handleReprint: () => void;
-  handleShowTransactions: (filter?: string) => void;
-  handleShowHeldSales: () => void;
-  setShowShortcuts: (show: boolean) => void;
-
-  // Last Bill
-  lastBill: PosLastBill | null;
-  qtyFocusTrigger: number;
-  tableFocusTrigger: number;
-  selectedIndex: number;
-  setSelectedIndex: (index: number) => void;
+  onAddNewCustomer?: () => void;
+  // onEditSelectedCustomer?: () => void;
+  onEditSelectedCustomer?: (data: any) => void;
+  onSyncStock?: () => void;
+  isB2B?: boolean;
+  onChangeGST?: () => void;
+  onEndDayClick?: () => void;
 }
 
 export default function ClassicPOSLayout({
-  userDetails,
-  currentTime,
-  onLogout,
   uiVariant,
   changeUIVariant,
   printFormat,
   changePrintFormat,
-  isOnline,
-  syncStatus,
-  netOffline,
-  manualMode,
-  setManualMode,
-
-  cart,
-  scanInputRef,
-  searchTerm,
-  setSearchTerm,
-  handleScan,
-  invoiceNumber,
-  removeFromCart,
-  updateQty,
-  handleQtyChange,
-  handleQtyBlur,
-
-  totalQty,
-  grossAmount,
-  totalDiscount,
-  // taxableValue,
-  totalTax,
-  // grandTotal,
-  roundedGrandTotal,
-  // roundOff,
-
-  handleSaveBill,
-  handleHoldSale,
-  handleReprint,
-  handleShowTransactions,
-  handleShowHeldSales,
-  setShowShortcuts,
-  lastBill,
-  qtyFocusTrigger,
-  tableFocusTrigger,
-  selectedIndex,
-  setSelectedIndex,
+  onAddNewCustomer,
+  onEditSelectedCustomer,
+  onSyncStock,
+  isB2B,
+  onChangeGST,
+  onEndDayClick,
 }: ClassicPOSLayoutProps) {
+  const posLogic = usePosContext();
+  const {
+    userDetails,
+    currentTime,
+    onLogout,
+    isOnline,
+    syncStatus,
+    netOffline,
+    manualMode,
+    setManualMode,
+    cart,
+    scanInputRef,
+    searchTerm,
+    setSearchTerm,
+    handleScan,
+    // searchProduct,
+    updateQty,
+    handleQtyChange,
+    handleQtyBlur,
+    totalQty,
+    grossAmount,
+    totalDiscount,
+    totalTax,
+    roundedGrandTotal,
+    roundOff,
+    handleSaveBill,
+    handleNewSale,
+    handleReprint,
+    handleShowTransactions,
+    handleShowHeldSales,
+    setShowShortcuts,
+    setItemToDelete,
+    setShowCalculator,
+    setShowHoldNoteModal,
+    lastBill,
+    qtyFocusTrigger,
+    tableFocusTrigger,
+    selectedIndex,
+    setSelectedIndex,
+    selectedCustomer,
+    setSelectedCustomer,
+    customerKeyword,
+    setCustomerKeyword,
+    branchInfo,
+    generateInvoiceNumber,
+    isInvoiceLoading,
+    isServerOnline,
+    isNetworkOnline,
+  } = posLogic;
+
+  const invoiceNumber = generateInvoiceNumber();
+
   // --- Local State for Classic UI ---
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [tenderMode, setTenderMode] = useState("cash");
   const [amountReceived, setAmountReceived] = useState("");
+  const [transactionRef, setTransactionRef] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  // Customer Search State (Local for now)
-  const [customerKeyword, setCustomerKeyword] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<{
-    name: string;
-    mobile: string;
-    id?: string;
-  } | null>(null);
+  useEffect(() => {
+    if (!showPaymentModal && !showSettingsModal && !isInvoiceLoading) {
+      const timer = setTimeout(() => scanInputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showPaymentModal, showSettingsModal, isInvoiceLoading, scanInputRef]);
+
+  useEffect(() => {
+    const handleOpenPayment = () => {
+      setTenderMode("cash");
+      setShowPaymentModal(true);
+    };
+    window.addEventListener(
+      "openPaymentModal",
+      handleOpenPayment as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "openPaymentModal",
+        handleOpenPayment as EventListener,
+      );
+  }, []);
+
+  const isMac = useMemo(
+    () => navigator.userAgent.toUpperCase().indexOf("MAC") >= 0,
+    [],
+  );
 
   // --- Data Mapping ---
 
@@ -199,52 +196,98 @@ export default function ClassicPOSLayout({
       missingQualifyingAmount: item.missingQualifyingAmount,
       schm_type: item.schm_type,
       schm_camp_grp: item.schm_camp_grp,
+      group_name: item.group_name,
       appliedQty: item.appliedQty,
+      hsn_code: item.hsn_code,
     }));
   }, [cart]);
 
   // Map Classic callbacks to modern logic
-  const handleRemoveClassic = (itemCode: string) => {
-    const item = cart.find((c) => c.itemCode === itemCode);
-    if (item) removeFromCart(item.id);
+  const handleRemoveClassic = (id: string) => {
+    const itemToDelete = cart.find((c) => c.id === id);
+    if (itemToDelete) {
+      setItemToDelete(itemToDelete);
+    }
   };
 
   // Payment Logic
-  const onPayNow = async () => {
-    const received = parseFloat(amountReceived) || 0;
+  const onPayNow = async (splitPaymentsOrEvent?: any) => {
+    const isArray = Array.isArray(splitPaymentsOrEvent);
+    const splitData = isArray ? splitPaymentsOrEvent : undefined;
+
+    // If in split mode but we don't have the explicit split payment array payload, force the modal open
+    if (tenderMode === "split" && !isArray) {
+      setShowPaymentModal(true);
+      return;
+    }
+
+    const received = amountReceived
+      ? parseFloat(amountReceived)
+      : roundedGrandTotal;
     if (tenderMode === "cash" && received < roundedGrandTotal) {
       alert("Amount received is less than the bill amount!");
       return;
     }
-    const success = await handleSaveBill(tenderMode, received);
+    const success = await handleSaveBill(
+      tenderMode,
+      received,
+      transactionRef,
+      selectedCustomer,
+      splitData,
+    );
     if (success) {
       setAmountReceived("");
       setTenderMode("cash");
+      setTransactionRef("");
+      setShowPaymentModal(false);
+      setCustomerKeyword?.("");
     }
   };
 
   // Quick Actions
   const quickActions = [
-    { label: "New Sale", action: () => {}, icon: Plus },
-    { label: "Hold Sale", action: () => handleHoldSale(""), icon: Timer },
+    { label: "New Sale", action: handleNewSale, icon: Plus, shortcut: "F6" },
+    {
+      label: "Hold Sale",
+      action: () => setShowHoldNoteModal(true),
+      icon: Timer,
+      shortcut: "F2",
+    },
     {
       label: "View Hold Bills",
       action: handleShowHeldSales,
       icon: ShoppingCart,
+      shortcut: "F4",
     },
-    { label: "Reprint Bill", action: handleReprint, icon: Printer },
+    {
+      label: "Reprint Bill",
+      action: handleReprint,
+      icon: Printer,
+      shortcut: isMac ? "⌥ R" : "Alt R",
+    },
     {
       label: "Today's Sales",
       action: () => handleShowTransactions("today"),
       icon: Calendar,
     },
-    { label: "Calculator", action: () => {}, icon: Calculator },
     {
-      label: "Keyboard Shortcuts",
+      label: "Calculator",
+      action: () => setShowCalculator(true),
+      icon: Calculator,
+      shortcut: isMac ? "⌥ K" : "Alt K",
+    },
+    {
+      label: "Shortcuts",
       action: () => setShowShortcuts(true),
       icon: Grid,
+      shortcut: "F1",
     },
-    { label: "Sync Stock", action: () => {}, icon: RefreshCw },
+    {
+      label: "Sync Stock",
+      action: onSyncStock,
+      icon: RefreshCw,
+      disabled: true,
+    },
     {
       label: "Sync Tracker",
       action: () => handleShowTransactions(),
@@ -280,8 +323,14 @@ export default function ClassicPOSLayout({
         // uiVariant={uiVariant}
         onOpenSettings={() => setShowSettingsModal(true)}
         netOffline={netOffline}
+        isServerOnline={isServerOnline}
+        isNetworkOnline={isNetworkOnline}
         netMsg={netMsg}
         netBackOnline={isOnline && syncStatus === "synced"}
+        manualMode={manualMode}
+        setManualMode={setManualMode}
+        isB2B={isB2B}
+        onEndDayClick={onEndDayClick}
       />
 
       {/* MAIN CONTENT AREA */}
@@ -296,7 +345,7 @@ export default function ClassicPOSLayout({
         {/* CENTER: Cart */}
         <ClassicCartArea
           leftCollapsed={leftCollapsed}
-          posReady={true}
+          posReady={!isInvoiceLoading}
           inputRef={scanInputRef as any}
           barcode={searchTerm}
           setBarcode={setSearchTerm}
@@ -328,30 +377,45 @@ export default function ClassicPOSLayout({
           setTenderMode={setTenderMode}
           //   setAmountReceived={setAmountReceived as any}
           onPayNow={onPayNow}
-          onHoldBill={() => handleHoldSale("")} // Simple hold for now
+          onOpenPaymentModal={(mode) => {
+            setTenderMode(mode);
+            setShowPaymentModal(true);
+          }}
+          onHoldBill={() => setShowHoldNoteModal(true)}
           customerKeyword={customerKeyword}
           setCustomerKeyword={setCustomerKeyword}
           selectedCustomer={selectedCustomer}
           setSelectedCustomer={setSelectedCustomer}
+          onAddNewCustomer={onAddNewCustomer}
+          onEditSelectedCustomer={onEditSelectedCustomer}
           netOffline={netOffline}
           manualMode={manualMode}
           setManualMode={setManualMode}
+          roundOff={roundOff}
+          isB2B={isB2B}
+          branchInfo={branchInfo}
+          onChangeGST={onChangeGST}
         />
       </div>
 
       {/* FOOTER */}
       <ClassicLastBillFooter
-        lastBill={{
-          invoice: lastBill?.bill_no,
-          time: lastBill?.created_at,
-          amount: lastBill?.grand_total,
-          qty: lastBill?.total_qty,
-          received: lastBill?.amount_received,
-          change:
-            lastBill?.payment_mode === "cash"
-              ? lastBill.amount_received - lastBill.grand_total
-              : 0,
-        }}
+        lastBill={
+          lastBill
+            ? {
+                invoice: lastBill.bill_no,
+                time: lastBill.time || lastBill.created_at,
+                amount: lastBill.grand_total,
+                qty: lastBill.total_qty,
+                received: lastBill.amount_received,
+                change:
+                  lastBill.payment_mode === "cash"
+                    ? (lastBill.amount_received || 0) -
+                      (lastBill.grand_total || 0)
+                    : 0,
+              }
+            : null
+        }
         onReprintClick={handleReprint}
       />
 
@@ -363,6 +427,19 @@ export default function ClassicPOSLayout({
         printFormat={printFormat}
         changePrintFormat={changePrintFormat}
         returnFocusRef={scanInputRef as React.RefObject<HTMLElement>}
+      />
+
+      <ClassicPaymentModal
+        show={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        tenderMode={tenderMode}
+        setTenderMode={setTenderMode}
+        amountReceived={amountReceived}
+        setAmountReceived={setAmountReceived}
+        transactionRef={transactionRef}
+        setTransactionRef={setTransactionRef}
+        grandTotal={roundedGrandTotal}
+        onConfirm={onPayNow}
       />
     </div>
   );

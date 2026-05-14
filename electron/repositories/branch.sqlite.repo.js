@@ -12,19 +12,21 @@ export const createTempBranchTableSqlite = (sampleItem) => {
       throw new Error("Sample item is null or undefined");
     }
     const keys = Object.keys(sampleItem);
-    
+
     // Map types based on sample data
-    const columnDefs = keys.filter(key => {
-      const k = key.toLowerCase();
-      return k !== 'id' && k !== 'sync_created_at';
-    }).map((key) => {
-      const col = key.replace(/[^a-zA-Z0-9_]/g, "");
-      let type = "TEXT";
-      if (typeof sampleItem[key] === "number") {
-        type = Number.isInteger(sampleItem[key]) ? "INTEGER" : "REAL";
-      }
-      return `"${col}" ${type} NULL`;
-    });
+    const columnDefs = keys
+      .filter((key) => {
+        const k = key.toLowerCase();
+        return k !== "id" && k !== "sync_created_at";
+      })
+      .map((key) => {
+        const col = key.replace(/[^a-zA-Z0-9_]/g, "");
+        let type = "TEXT";
+        if (typeof sampleItem[key] === "number") {
+          type = Number.isInteger(sampleItem[key]) ? "INTEGER" : "REAL";
+        }
+        return `"${col}" ${type} NULL`;
+      });
 
     // Ensure we start with a fresh temp table (Drop if exists)
     db.prepare(`DROP TABLE IF EXISTS ${TEMP_TABLE_NAME}`).run();
@@ -51,7 +53,9 @@ export const insertBranchesBulkSqlite = (items) => {
 
   try {
     const keys = Object.keys(items[0]);
-    const columns = keys.map((k) => `"${k.replace(/[^a-zA-Z0-9_]/g, "")}"`).join(", ");
+    const columns = keys
+      .map((k) => `"${k.replace(/[^a-zA-Z0-9_]/g, "")}"`)
+      .join(", ");
     const placeholders = keys.map(() => "?").join(", ");
 
     const insertStmt = db.prepare(`
@@ -90,14 +94,18 @@ export const swapBranchTablesSqlite = () => {
       db.prepare(`DROP TABLE IF EXISTS ${backup}`).run();
 
       // 2. Rename current main table to backup (if it exists)
-      const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(TABLE_NAME);
+      const tableExists = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+        .get(TABLE_NAME);
       if (tableExists) {
         db.prepare(`ALTER TABLE ${TABLE_NAME} RENAME TO ${backup}`).run();
       }
 
       // 3. Rename temp table to main table
-      db.prepare(`ALTER TABLE ${TEMP_TABLE_NAME} RENAME TO ${TABLE_NAME}`).run();
-      
+      db.prepare(
+        `ALTER TABLE ${TEMP_TABLE_NAME} RENAME TO ${TABLE_NAME}`,
+      ).run();
+
       // 4. Drop the backup table
       db.prepare(`DROP TABLE IF EXISTS ${backup}`).run();
     });
@@ -114,11 +122,49 @@ export const swapBranchTablesSqlite = () => {
 ====================================================== */
 export const getBranchesSqlite = () => {
   try {
-    const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(TABLE_NAME);
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
     if (!tableExists) return [];
     return db.prepare(`SELECT * FROM ${TABLE_NAME}`).all();
   } catch (err) {
     console.error("❌ SQLite Get Branches Error:", err.message);
     return [];
+  }
+};
+
+/* ======================================================
+   GET COUNT
+====================================================== */
+export const getBranchesCountSqlite = () => {
+  try {
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
+    if (!tableExists) return 0;
+    const result = db
+      .prepare(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`)
+      .get();
+    return result ? result.count : 0;
+  } catch (err) {
+    console.error("❌ SQLite Get Branches Count Error:", err.message);
+    return 0;
+  }
+};
+
+export const getBranchByCodeSqlite = (branchCode) => {
+  try {
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
+    if (!tableExists) return null;
+    return db
+      .prepare(
+        `SELECT * FROM ${TABLE_NAME} WHERE branchCode = ? OR Branch_Code = ?`,
+      )
+      .get(branchCode, branchCode);
+  } catch (err) {
+    console.error("❌ SQLite Get Branch by Code Error:", err.message);
+    return null;
   }
 };

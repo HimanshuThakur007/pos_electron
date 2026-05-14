@@ -7,9 +7,10 @@ interface BaseModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  theme: "light" | "dark";
+  theme?: "light" | "dark";
   width?: string;
   subTitle?: string;
+  onConfirm?: () => void;
 }
 
 const BaseModal: React.FC<BaseModalProps> = ({
@@ -21,6 +22,7 @@ const BaseModal: React.FC<BaseModalProps> = ({
   theme,
   width = "800px",
   subTitle,
+  onConfirm,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -31,19 +33,33 @@ const BaseModal: React.FC<BaseModalProps> = ({
     }
   }, [show]);
 
+  // Handle keyboard shortcuts for the modal
+  useEffect(() => {
+    if (!show) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "Enter" && onConfirm) {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent Enter from triggering other actions
+        onConfirm();
+      }
+    };
+
+    // Use capture phase to catch the event before other elements do
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [show, onClose, onConfirm]);
+
   if (!show) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300"
+      className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60"
       onClick={onClose}
     >
-      <style>{`
-        @keyframes modal-pop {
-          0% { opacity: 0; transform: scale(0.95) translateY(10px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
       <div
         ref={modalRef}
         className={`relative flex flex-col rounded-2xl shadow-2xl outline-none overflow-hidden ${
@@ -55,7 +71,6 @@ const BaseModal: React.FC<BaseModalProps> = ({
           width: width,
           maxWidth: "95%",
           maxHeight: "85vh",
-          animation: "modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
@@ -82,7 +97,7 @@ const BaseModal: React.FC<BaseModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className={`p-2 rounded-full transition-all duration-200 ${
+            className={`p-2 rounded-full ${
               theme === "dark"
                 ? "hover:bg-slate-800 text-slate-400 hover:text-white active:bg-slate-700"
                 : "hover:bg-slate-100 text-slate-400 hover:text-slate-900 active:bg-slate-200"

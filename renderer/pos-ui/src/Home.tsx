@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface HomeProps {
   onLogout: () => void;
@@ -32,6 +33,7 @@ export default function Home({ onLogout, onOpenPos }: HomeProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [stockData, setStockData] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   // ✅ DB check
   useEffect(() => {
@@ -92,7 +94,15 @@ export default function Home({ onLogout, onOpenPos }: HomeProps) {
   return (
     <div className="container mx-auto mt-10 p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Desktop POS Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate("/")}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition font-medium"
+          >
+            &larr; Back to Menu
+          </button>
+          <h1 className="text-2xl font-bold">Stock Dashboard</h1>
+        </div>
         <button
           onClick={onLogout}
           className="px-4 py-2 border border-red-500 text-red-500 rounded hover:bg-red-50 transition"

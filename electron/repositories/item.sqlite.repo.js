@@ -4,14 +4,57 @@ const TABLE_NAME = "items";
 const TEMP_TABLE_NAME = "items_temp";
 
 const COLUMNS = [
-  "id", "itemCodePrefix", "itemCode", "itemName", "oldBarCode", "itemDesc", "signage_desc",
-  "printDesc", "size", "packing", "innerPacking", "cartonPacking", "shadeName", "shadeCode",
-  "supplierName", "supplierCode", "department", "category", "subCategory", "material", "brand",
-  "subClass", "priceRange", "gstCategory", "taxRate", "powerPrice", "activeInactive", "launchMonth",
-  "basicRate", "purchaseRate", "saleRate", "mrp", "expImpSur", "itemType", "hsn_code", "CBM",
-  "STORE_FORMAT", "fileName", "newfileName", "created_on", "status", "status_1", "promo_type",
-  "wms_dept", "buy_permission", "Location_Permission", "updatedOn", "updatedBy", "Del_Time_By_Vendor",
-  "Grn_Make_Time", "wh_stock_days"
+  "id",
+  "itemCodePrefix",
+  "itemCode",
+  "itemName",
+  "oldBarCode",
+  "itemDesc",
+  "signage_desc",
+  "printDesc",
+  "size",
+  "packing",
+  "innerPacking",
+  "cartonPacking",
+  "shadeName",
+  "shadeCode",
+  "supplierName",
+  "supplierCode",
+  "department",
+  "category",
+  "subCategory",
+  "material",
+  "brand",
+  "subClass",
+  "priceRange",
+  "gstCategory",
+  "taxRate",
+  "powerPrice",
+  "activeInactive",
+  "launchMonth",
+  "basicRate",
+  "purchaseRate",
+  "saleRate",
+  "mrp",
+  "expImpSur",
+  "itemType",
+  "hsn_code",
+  "CBM",
+  "STORE_FORMAT",
+  "fileName",
+  "newfileName",
+  "created_on",
+  "status",
+  "status_1",
+  "promo_type",
+  "wms_dept",
+  "buy_permission",
+  "Location_Permission",
+  "updatedOn",
+  "updatedBy",
+  "Del_Time_By_Vendor",
+  "Grn_Make_Time",
+  "wh_stock_days",
 ];
 
 /* ======================================================
@@ -90,12 +133,16 @@ export const createTempItemsTableSqlite = () => {
 export const insertItemsBulkSqlite = (items) => {
   if (!items || items.length === 0) return;
 
+  console.log(
+    `📥 Inserting ${items.length} items into SQLite temporary table...`,
+  );
+
   try {
     const placeholders = COLUMNS.map(() => "?").join(", ");
     const columnNames = COLUMNS.join(", ");
 
     const insertStmt = db.prepare(`
-      INSERT INTO ${TEMP_TABLE_NAME} (${columnNames}) VALUES (${placeholders})
+      INSERT OR REPLACE INTO ${TEMP_TABLE_NAME} (${columnNames}) VALUES (${placeholders})
     `);
 
     const insertMany = db.transaction((rows) => {
@@ -105,7 +152,8 @@ export const insertItemsBulkSqlite = (items) => {
           if (val === undefined || val === null || val === "") return null;
           if (typeof val === "boolean") return val ? 1 : 0;
           if (val instanceof Date) return val.toISOString();
-          if (typeof val === "object" && !Buffer.isBuffer(val)) return JSON.stringify(val);
+          if (typeof val === "object" && !Buffer.isBuffer(val))
+            return JSON.stringify(val);
           return val;
         });
         insertStmt.run(values);
@@ -124,8 +172,12 @@ export const insertItemsBulkSqlite = (items) => {
 ====================================================== */
 export const createItemsIndexesSqlite = () => {
   try {
-    db.prepare(`CREATE INDEX IF NOT EXISTS idx_items_oldBarCode_temp ON ${TEMP_TABLE_NAME} (oldBarCode)`).run();
-    db.prepare(`CREATE INDEX IF NOT EXISTS idx_items_itemName_temp ON ${TEMP_TABLE_NAME} (itemName)`).run();
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_items_oldBarCode_temp ON ${TEMP_TABLE_NAME} (oldBarCode)`,
+    ).run();
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_items_itemName_temp ON ${TEMP_TABLE_NAME} (itemName)`,
+    ).run();
   } catch (err) {
     console.error("❌ SQLite Index Error:", err.message);
   }
@@ -141,12 +193,16 @@ export const swapItemsTablesSqlite = () => {
     const swapTransaction = db.transaction(() => {
       db.prepare(`DROP TABLE IF EXISTS ${backup}`).run();
 
-      const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(TABLE_NAME);
+      const tableExists = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+        .get(TABLE_NAME);
       if (tableExists) {
         db.prepare(`ALTER TABLE ${TABLE_NAME} RENAME TO ${backup}`).run();
       }
 
-      db.prepare(`ALTER TABLE ${TEMP_TABLE_NAME} RENAME TO ${TABLE_NAME}`).run();
+      db.prepare(
+        `ALTER TABLE ${TEMP_TABLE_NAME} RENAME TO ${TABLE_NAME}`,
+      ).run();
       db.prepare(`DROP TABLE IF EXISTS ${backup}`).run();
     });
 
@@ -162,13 +218,36 @@ export const swapItemsTablesSqlite = () => {
 ====================================================== */
 export const getItemByCodeSqlite = (code) => {
   try {
-    const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(TABLE_NAME);
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
     if (!tableExists) return null;
 
-    return db.prepare(`SELECT * FROM ${TABLE_NAME} WHERE itemCode = ? OR oldBarCode = ?`).get(code, code);
+    return db
+      .prepare(
+        `SELECT * FROM ${TABLE_NAME} WHERE itemCode = ? OR oldBarCode = ?`,
+      )
+      .get(code, code);
   } catch (err) {
     console.error("❌ SQLite Get Item Error:", err.message);
     return null;
+  }
+};
+
+/* ======================================================
+   GET ALL DATA (All Items)
+====================================================== */
+export const getAllItemsSqlite = () => {
+  try {
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
+    if (!tableExists) return [];
+
+    return db.prepare(`SELECT * FROM ${TABLE_NAME}`).all();
+  } catch (err) {
+    console.error("❌ SQLite Get All Items Error:", err.message);
+    return [];
   }
 };
 
@@ -177,9 +256,19 @@ export const getItemByCodeSqlite = (code) => {
 ====================================================== */
 export const getItemCountSqlite = () => {
   try {
-    const result = db.prepare(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`).get();
-    return result ? result.count : 0;
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
+    if (!tableExists) return 0;
+
+    const result = db
+      .prepare(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`)
+      .get();
+    const totalItems = result ? result.count : 0;
+    console.log(`📦 Total items in SQLite database: ${totalItems}`);
+    return totalItems;
   } catch (err) {
+    console.error("❌ Failed to get item count:", err.message);
     return 0;
   }
 };

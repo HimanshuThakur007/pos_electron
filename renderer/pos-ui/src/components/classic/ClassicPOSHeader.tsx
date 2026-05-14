@@ -1,14 +1,18 @@
 import {
   Monitor,
-  // Home,
-  Power,
+  Home,
+  // Power,
   Store,
   MonitorSmartphone,
   Clock3,
   Wifi,
   WifiOff,
-  Settings,
+  // Settings,
+  Calendar,
+  LogOut,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import mLogo from "../../assets/M_LOGO.png";
 // import { POS_UI_VARIANTS } from "../../uiRegistry";
 
 interface ClassicPOSHeaderProps {
@@ -23,8 +27,14 @@ interface ClassicPOSHeaderProps {
   displayWindow?: boolean;
   onOpenSettings: () => void;
   netOffline?: boolean;
+  isServerOnline?: boolean;
+  isNetworkOnline?: boolean;
   netMsg?: string;
   netBackOnline?: boolean;
+  manualMode?: string;
+  setManualMode?: (mode: string) => void;
+  isB2B?: boolean;
+  onEndDayClick?: () => void;
 }
 
 export default function ClassicPOSHeader({
@@ -38,246 +48,222 @@ export default function ClassicPOSHeader({
   openCustomerDisplay,
   displayConnected,
   displayWindow,
-  onOpenSettings,
+  // onOpenSettings,
 
   netOffline,
-  netMsg,
-  netBackOnline,
+  isServerOnline,
+  isNetworkOnline,
+  // netMsg,
+  // netBackOnline,
+  manualMode,
+  setManualMode,
+  isB2B,
+  onEndDayClick,
 }: ClassicPOSHeaderProps) {
   // const location = useLocation();
-  // const navigate = useNavigate();
-
-  //   const pageTitle = useMemo(() => {
-  //     const p = location.pathname;
-  //     if (p === "/pos/sale-bill") return "Sale Bill";
-  //     if (p === "/pos-otp") return "POS OTP";
-  //     if (p === "/pos/edc-config") return "EDC Config";
-
-  //     const last = p.split("/").filter(Boolean).pop() || "";
-  //     if (!last) return "";
-  //     return last.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  //   }, [location.pathname]);
-
-  //   const goDashboard = () => navigate("/dashboard");
-
-  //   const variants = uiVariants || POS_UI_VARIANTS;
+  const navigate = useNavigate();
+  const goDashboard = () => navigate("/");
 
   const branchName = user?.branchName || "Market99";
   const branchCode = user?.branchCode || "POS-001";
-  type NetworkStatus = {
-    label: string;
-    icon: string;
-    iconColor: string;
-    borderColor: string;
-    bgColor: string;
-    wrapClass: string;
-    iconClass: string;
-  };
-
-  const networkStatus: NetworkStatus = (() => {
-    if (netOffline) {
-      const m = String(netMsg || "").toLowerCase();
-      const isServer =
-        m.includes("backend service is unreachable") ||
-        m.includes("server connection");
-      const isInternet =
-        m.includes("network connection lost") || m.includes("internet");
-
-      const iconColor = "#FFD38A";
-      const borderColor = "#FFC46B";
-      const bgColor = "rgba(255, 244, 214, 0.1)";
-
-      return {
-        label: isServer
-          ? "Offline (Server)"
-          : isInternet
-            ? "Offline (Internet)"
-            : "Offline",
-        icon: "off",
-        iconColor,
-        borderColor,
-        bgColor,
-        wrapClass: `border-[${borderColor}] bg-[${bgColor}]`,
-        iconClass: `text-[${iconColor}]`,
-      };
-    }
-
-    if (netBackOnline) {
-      const iconColor = "#78F7A2";
-      const borderColor = "#44E67C";
-      const bgColor = "rgba(255, 255, 255, 0.08)";
-
-      return {
-        label: "Restored",
-        icon: "wifi",
-        iconColor,
-        borderColor,
-        bgColor,
-        wrapClass: `border-[${borderColor}] bg-[${bgColor}]`,
-        iconClass: `text-[${iconColor}]`,
-      };
-    }
-
-    const iconColor = "#78F7A2";
-    const borderColor = "#44E67C";
-    const bgColor = "rgba(255, 255, 255, 0.08)";
-
-    return {
-      label: "Online",
-      icon: "wifi",
-      iconColor,
-      borderColor,
-      bgColor,
-      wrapClass: `border-[${borderColor}] bg-[${bgColor}]`,
-      iconClass: `text-[${iconColor}]`,
-    };
-  })();
+  const isOnline =
+    isServerOnline !== undefined
+      ? isServerOnline
+      : netOffline
+        ? false
+        : manualMode === "online";
 
   return (
-    <div className="px-3 pt-2 pb-1">
-      <div className="rounded-2xl bg-gradient-to-r from-[#667BE5] via-[#6D66CA] to-[#744FA9] shadow-[0_8px_24px_rgba(90,85,180,0.28)] border border-white/10 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          {/* LEFT: Store + terminal + cashier + active */}
-          <div className="min-w-0 flex items-center gap-3">
-            {/* Store title pill */}
-            <div className="min-w-0 flex items-center gap-2 rounded-xl bg-white/10 border border-white/15 px-3 py-2 backdrop-blur-sm">
-              <Store size={16} className="text-white shrink-0" />
-              <span className="text-white font-semibold text-sm truncate">
+    <header className="bg-[#0B1120] border-b border-slate-800 shadow-sm select-none w-full z-50 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5">
+        {/* LEFT: Logo & Metadata */}
+        <div className="flex items-center gap-4">
+          {/* Logo */}
+          <div
+            className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+            onClick={goDashboard}
+            title="Go to Dashboard"
+          >
+            <img
+              src={mLogo}
+              alt="Market99 Logo"
+              className="h-8 w-auto object-contain"
+            />
+          </div>
+
+          {/* End Day */}
+          <button
+            onClick={onEndDayClick}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-colors"
+            title="End Day"
+            type="button"
+          >
+            <Store size={14} />
+            <span className="text-xs font-bold hidden sm:inline">End Day</span>
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={() => logout?.({ stopAutoSync })}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition-colors"
+            title="Logout (F10)"
+            type="button"
+          >
+            <LogOut size={14} />
+            <span className="text-xs font-bold hidden sm:inline">Logout</span>
+          </button>
+
+          <div className="h-5 w-px bg-slate-700/50 hidden lg:block" />
+
+          {/* Metadata (Hidden on very small screens, falls back to bottom row) */}
+          <div className="hidden lg:flex items-center gap-4 text-xs font-medium text-slate-400">
+            <div className="flex items-center gap-1.5" title="Branch">
+              <Store size={14} className="text-slate-500" />
+              <span className="max-w-[150px] truncate text-slate-300">
                 {branchName}
               </span>
             </div>
-
-            {/* POS code pill */}
-            <div className="hidden md:flex items-center gap-2 rounded-xl bg-white/12 border border-white/15 px-3 py-2 backdrop-blur-sm">
-              <MonitorSmartphone size={14} className="text-white/90" />
-              <span className="text-white text-sm font-semibold whitespace-nowrap">
-                {branchCode}
-              </span>
+            <div className="flex items-center gap-1.5" title="Terminal">
+              <MonitorSmartphone size={14} className="text-slate-500" />
+              <span className="text-slate-300">{branchCode}</span>
             </div>
-
-            {/* Cashier pill */}
-            <div className="hidden lg:flex items-center gap-2 rounded-xl bg-white/12 border border-white/15 px-3 py-2 backdrop-blur-sm">
-              <span className="w-2 h-2 rounded-full bg-white/90" />
-              <span className="text-white text-sm font-semibold whitespace-nowrap">
+            <div
+              className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-1 rounded border border-slate-700/50"
+              title="Cashier"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]" />
+              <span className="text-slate-200">
                 {user?.userName || "Cashier"}
               </span>
             </div>
+            {(user?.fin_year || user?.fy_code) && (
+              <div className="flex items-center gap-1.5" title="Financial Year">
+                <Calendar size={14} className="text-slate-500" />
+                <span className="text-slate-300">
+                  {user?.fin_year || user?.fy_code}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: Controls & Time */}
+        <div className="flex items-center gap-3 md:gap-4 shrink-0">
+          {/* Billing Mode Pill */}
+          <div
+            className={`flex items-center px-2 py-1 rounded border text-[10px] font-bold uppercase tracking-widest ${
+              isB2B
+                ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                : "bg-blue-500/10 border-blue-500/20 text-blue-400"
+            }`}
+          >
+            {isB2B ? "B2B Sale" : "Sale Billing"}
           </div>
 
-          {/* RIGHT: Time + online + controls */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Time card */}
-            <div className="hidden xl:flex items-center gap-2 rounded-xl bg-white/10 border border-white/15 px-1 py-1 backdrop-blur-sm min-w-[170px] justify-center">
-              <Clock3 size={15} className="text-white/90" />
-              <div className="leading-tight">
-                <div className="text-[11px] text-white/80 font-medium">
-                  {now && formatDate ? formatDate(now) : ""}
-                </div>
-                <div className="text-sm text-white font-bold font-mono">
-                  {now && formatTime ? formatTime(now) : ""}
-                </div>
-              </div>
-            </div>
+          <div className="h-5 w-px bg-slate-700/50 hidden sm:block" />
 
-            <div
-              className={`hidden sm:flex items-center gap-2 rounded-xl border px-3 py-2 text-white backdrop-blur-sm ${networkStatus.wrapClass}`}
-              title={netMsg || (netOffline ? "Offline Mode" : "Connected")}
+          {/* Time */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Clock3 size={14} className="text-slate-500" />
+            <div className="flex flex-col justify-center text-right">
+              <span className="text-xs font-bold text-slate-200 font-mono tracking-wide leading-none">
+                {now && formatTime ? formatTime(now) : ""}
+              </span>
+              <span className="text-[9px] text-slate-200 uppercase font-bold mt-1 leading-none">
+                {now && formatDate ? formatDate(now) : ""}
+              </span>
+            </div>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700/50 hidden sm:block" />
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Network Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = isOnline ? "offline" : "online";
+                setManualMode?.(next);
+              }}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 h-7 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                isServerOnline
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+                  : isNetworkOnline
+                    ? "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
+                    : "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
+              }`}
+              title="Toggle Network Mode"
             >
-              {networkStatus.icon === "off" ? (
-                <WifiOff size={14} className={networkStatus.iconClass} />
+              {isServerOnline || isNetworkOnline ? (
+                <Wifi size={13} strokeWidth={2.5} />
               ) : (
-                <Wifi size={14} className={networkStatus.iconClass} />
+                <WifiOff size={13} strokeWidth={2.5} />
               )}
-              <div className="leading-tight">
-                <div className="text-white text-xs font-semibold whitespace-nowrap">
-                  {networkStatus.label}
-                </div>
-              </div>
-            </div>
-
-            {/* UI Switch */}
-            <button
-              onClick={onOpenSettings}
-              className="hidden lg:flex items-center gap-2 rounded-xl bg-white/10 border border-white/15 hover:bg-white/15 px-3 py-2 text-white transition backdrop-blur-sm"
-              title="UI Settings"
-              type="button"
-            >
-              <Settings size={14} className="text-white/90" />
-            </button>
-
-            {/* Customer Display */}
-            <button
-              onClick={openCustomerDisplay}
-              className="rounded-xl bg-white/10 border border-white/15 hover:bg-white/15 px-3 py-2 text-white flex items-center gap-2 transition backdrop-blur-sm"
-              title="Customer Display"
-              type="button"
-            >
-              <Monitor
-                size={14}
-                className={
-                  displayConnected
-                    ? "text-[#78F7A2]"
-                    : displayWindow
-                      ? "text-[#FFD3D3]"
-                      : "text-white/90"
-                }
-              />
-              <span className="text-xs font-semibold hidden 2xl:inline">
-                {displayConnected
-                  ? "Display On"
-                  : displayWindow
-                    ? "Closed"
-                    : "Display"}
+              <span>
+                {isServerOnline
+                  ? "Online"
+                  : isNetworkOnline
+                    ? "Server Down"
+                    : "Offline"}
               </span>
             </button>
 
-            {/* Home */}
-            {/* <button
-              onClick={goDashboard}
-              className="rounded-xl bg-white/10 border border-white/15 hover:bg-white/15 px-3 py-2 text-white transition backdrop-blur-sm"
-              title="Dashboard"
-              type="button"
-            >
-              <Home size={14} className="text-white" />
-            </button> */}
-
-            {/* Logout */}
+            {/* Display Toggle */}
             <button
-              onClick={() => logout?.({ stopAutoSync })}
-              className="rounded-xl bg-white/10 border border-white/15 hover:bg-rose-400/20 px-3 py-2 text-white transition backdrop-blur-sm"
-              title="Logout"
+              onClick={openCustomerDisplay}
+              className={`p-1.5 rounded transition-colors border ${
+                displayConnected
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+                  : displayWindow
+                    ? "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
+                    : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+              }`}
+              title="Customer Display"
               type="button"
             >
-              <Power size={14} className="text-white" />
+              <Monitor size={16} />
+            </button>
+
+            {/* Home */}
+            <button
+              onClick={goDashboard}
+              className="p-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+              title="Main Menu"
+              type="button"
+            >
+              <Home size={16} />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Second row (mobile/tablet): time + metadata */}
-        <div className="xl:hidden mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <div className="rounded-lg bg-white/10 border border-white/15 px-2.5 py-1.5 text-white/90 font-mono">
-            {now && formatDate && formatTime
-              ? `${formatDate(now)} • ${formatTime(now)}`
-              : ""}
+      {/* Mobile/Tablet Fallback Row (Hidden on LG and above) */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-2 border-t border-slate-800/50 bg-[#0F172A]">
+        <div className="flex items-center gap-4 text-xs font-medium text-slate-400 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0" title="Branch">
+            <Store size={12} className="text-slate-500" />
+            <span className="text-slate-300">{branchName}</span>
           </div>
-
-          {/* {pageTitle && (
-            <div className="rounded-lg bg-white/10 border border-white/15 px-2.5 py-1.5 text-white font-semibold">
-              {pageTitle}
-            </div>
-          )} */}
-
-          {(user?.fin_year || user?.fy_code) && (
-            <div className="rounded-lg bg-white/10 border border-white/15 px-2.5 py-1.5 text-white/90">
-              FY: {user?.fin_year || user?.fy_code}
-            </div>
-          )}
-
-          <div className="sm:hidden rounded-full bg-[#3DDC74] text-white px-2.5 py-1 font-semibold">
-            Active
+          <div className="flex items-center gap-1.5 shrink-0" title="Terminal">
+            <MonitorSmartphone size={12} className="text-slate-500" />
+            <span className="text-slate-300">{branchCode}</span>
+          </div>
+          <div
+            className="flex items-center gap-1.5 shrink-0 bg-slate-800/50 px-2 py-0.5 rounded border border-slate-700/50"
+            title="Cashier"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]" />
+            <span className="text-slate-200">
+              {user?.userName || "Cashier"}
+            </span>
           </div>
         </div>
+
+        <div className="sm:hidden flex items-center gap-1.5 shrink-0 text-xs font-mono font-bold text-slate-300">
+          {now && formatTime ? formatTime(now) : ""}
+        </div>
       </div>
-    </div>
+    </header>
   );
 }

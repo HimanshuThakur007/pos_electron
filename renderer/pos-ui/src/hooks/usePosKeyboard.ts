@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from "react";
 import { type CartItem } from "../utils/posUtils";
+// import toast from "react-hot-toast";
 
 interface UsePosKeyboardProps {
   cart: CartItem[];
@@ -13,7 +14,10 @@ interface UsePosKeyboardProps {
     paymentMode: string,
     amountReceived: number,
     transactionRef?: string,
+    customer?: any,
   ) => Promise<boolean>;
+  selectedCustomer?: any;
+  customerResults?: any[];
   searchResults: any[];
   setSearchResults: React.Dispatch<React.SetStateAction<any[]>>;
   scanInputRef: React.RefObject<HTMLInputElement | null>;
@@ -32,6 +36,8 @@ interface UsePosKeyboardProps {
   handleLogout: () => void;
   setTableFocusTrigger: React.Dispatch<React.SetStateAction<number>>;
   setQtyFocusTrigger: React.Dispatch<React.SetStateAction<number>>;
+  setItemToDelete: React.Dispatch<React.SetStateAction<CartItem | null>>;
+  handleOpenPayment?: () => void;
 }
 
 export function usePosKeyboard({
@@ -43,6 +49,8 @@ export function usePosKeyboard({
   clearCart,
   totals,
   handleSaveBill,
+  selectedCustomer,
+  customerResults,
   searchResults,
   setSearchResults,
   scanInputRef,
@@ -61,33 +69,51 @@ export function usePosKeyboard({
   handleLogout,
   setTableFocusTrigger,
   setQtyFocusTrigger,
+  setItemToDelete,
+  handleOpenPayment,
 }: UsePosKeyboardProps) {
-  // Refs for stable access in event listeners
+  // ✅ Refs
   const cartRef = useRef(cart);
   const selectedIndexRef = useRef(selectedIndex);
   const handleSaveBillRef = useRef(handleSaveBill);
   const totalsRef = useRef(totals);
+  const selectedCustomerRef = useRef(selectedCustomer);
+  const customerResultsRef = useRef(customerResults);
 
   useEffect(() => {
     cartRef.current = cart;
     selectedIndexRef.current = selectedIndex;
     handleSaveBillRef.current = handleSaveBill;
     totalsRef.current = totals;
-  }, [cart, selectedIndex, handleSaveBill, totals]);
+    selectedCustomerRef.current = selectedCustomer;
+    customerResultsRef.current = customerResults;
+  }, [
+    cart,
+    selectedIndex,
+    handleSaveBill,
+    totals,
+    selectedCustomer,
+    customerResults,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
       const isInput =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement;
+
       const isScanInput = target === scanInputRef.current;
+
       const isQtyInput =
         target instanceof HTMLInputElement && target.type === "number";
 
-      // Always allow Escape to clear/focus search
+      // ✅ ESC
       if (e.key === "Escape") {
         e.preventDefault();
+
         if (showCalculator) setShowCalculator(false);
         else if (showShortcuts) setShowShortcuts(false);
         else if (showTransactions) setShowTransactions(false);
@@ -105,10 +131,13 @@ export function usePosKeyboard({
         e.preventDefault();
         target.blur();
       } else if (isInput && !isScanInput) {
-        return;
+        // Allow Function keys (F1-F12) and Alt shortcuts to bypass the input focus block
+        if (!/^F\d+$/.test(e.key) && !e.altKey) {
+          return;
+        }
       }
 
-      // Handle Alt shortcuts
+      // ✅ ALT shortcuts (FIXED)
       if (e.altKey) {
         const knownAltKeys = ["KeyK", "KeyR", "KeyI", "KeyD", "KeyQ", "KeyP"];
 
@@ -117,79 +146,94 @@ export function usePosKeyboard({
           scanInputRef.current?.blur();
         }
 
-        if (e.code === "KeyK") return setShowCalculator(true);
-        if (e.code === "KeyR") return handleReprint();
+        switch (e.code) {
+          case "KeyK":
+            setShowCalculator(true);
+            return;
 
-        // Cart Actions (Only if cart is not empty)
-        if (cartRef.current.length > 0) {
-          if (e.code === "KeyI") {
+          case "KeyR":
+            handleReprint();
+            return;
+
+          case "KeyI":
+          case "KeyD":
+          case "KeyQ":
+          case "KeyP": {
+            if (cartRef.current.length === 0) return;
+
             const item = cartRef.current[selectedIndexRef.current];
-            if (item) updateQty(item.id, 1);
-          } else if (e.code === "KeyD") {
-            const item = cartRef.current[selectedIndexRef.current];
-            if (item) updateQty(item.id, -1);
-          } else if (e.code === "KeyQ") {
-            setQtyFocusTrigger((prev) => prev + 1);
-          } else if (e.code === "KeyP") {
-            handleSaveBillRef.current?.(
-              "cash",
-              totalsRef.current.roundedGrandTotal,
-            );
+
+            if (e.code === "KeyI" && item) updateQty(item.id, 1);
+            else if (e.code === "KeyD" && item) updateQty(item.id, -1);
+            else if (e.code === "KeyQ") {
+              setQtyFocusTrigger((prev) => prev + 1);
+            } else if (e.code === "KeyP") {
+              handleSaveBillRef.current?.(
+                "cash",
+                totalsRef.current?.roundedGrandTotal ?? 0,
+                "",
+                selectedCustomerRef.current,
+              );
+            }
+            return;
           }
         }
       }
 
+      // ✅ SHIFT + D (delete confirm)
       if (e.shiftKey && e.code === "KeyD" && cartRef.current.length > 0) {
         e.preventDefault();
-        scanInputRef.current?.blur();
+
         const item = cartRef.current[selectedIndexRef.current];
-        if (item) {
-          if (window.confirm(`Delete item: ${item.itemName}?`)) {
-            removeFromCart(item.id);
-          }
-        }
+        if (item) setItemToDelete(item);
+
         return;
       }
 
+      // ✅ Function keys
       switch (e.key) {
         case "F1":
           e.preventDefault();
-          scanInputRef.current?.blur();
           setShowShortcuts(true);
           break;
+
         case "F2":
           e.preventDefault();
-          scanInputRef.current?.blur();
           setShowHoldNoteModal(true);
           break;
+
         case "F4":
           e.preventDefault();
-          scanInputRef.current?.blur();
           handleShowHeldSales();
           break;
+
         case "F6":
           e.preventDefault();
-          scanInputRef.current?.blur();
           clearCart();
           break;
+
+        case "F9":
+          e.preventDefault();
+          handleOpenPayment?.();
+          break;
+
         case "F10":
           e.preventDefault();
-          scanInputRef.current?.blur();
           handleLogout();
           break;
+
         case "ArrowDown":
           if (searchResults.length === 0 && cartRef.current.length > 0) {
             e.preventDefault();
-            scanInputRef.current?.blur();
             setSelectedIndex((prev) =>
               Math.min(prev + 1, cartRef.current.length - 1),
             );
           }
           break;
+
         case "ArrowUp":
           if (searchResults.length === 0 && cartRef.current.length > 0) {
             e.preventDefault();
-            scanInputRef.current?.blur();
             setSelectedIndex((prev) => Math.max(prev - 1, 0));
           }
           break;
@@ -201,7 +245,7 @@ export function usePosKeyboard({
       showTransactions,
       showHeldSales,
       showHoldNoteModal,
-      searchResults.length,
+      searchResults,
       removeFromCart,
       clearCart,
       updateQty,
@@ -218,11 +262,15 @@ export function usePosKeyboard({
       setShowHoldNoteModal,
       setTableFocusTrigger,
       setQtyFocusTrigger,
+      setItemToDelete,
+      handleOpenPayment,
     ],
   );
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
   }, [handleKeyDown]);
 }

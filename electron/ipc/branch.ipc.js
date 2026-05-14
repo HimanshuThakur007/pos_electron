@@ -1,9 +1,21 @@
 import { ipcMain } from "electron";
-import { getBranchesSqlite } from "../repositories/branch.sqlite.repo.js";
+import {
+  getBranchesSqlite,
+  getBranchesCountSqlite,
+  getBranchByCodeSqlite,
+} from "../repositories/branch.sqlite.repo.js";
 import { syncBranchesData } from "../services/sync.js";
 
 ipcMain.handle("get-branches", async () => {
   return getBranchesSqlite();
+});
+
+ipcMain.handle("get-branches-count", async () => {
+  return getBranchesCountSqlite();
+});
+
+ipcMain.handle("get-branch-by-code", async (_, branchCode) => {
+  return getBranchByCodeSqlite(branchCode);
 });
 
 ipcMain.handle("sync-branches", async (_, isManual = true) => {

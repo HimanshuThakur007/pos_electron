@@ -1,4 +1,5 @@
 import BaseModal from "../common/BaseModal";
+import { useMemo } from "react";
 
 interface PosShortcutsModalProps {
   show: boolean;
@@ -11,6 +12,11 @@ export default function PosShortcutsModal({
   onClose,
   theme = "light",
 }: PosShortcutsModalProps) {
+  const isMac = useMemo(
+    () => navigator.userAgent.toUpperCase().indexOf("MAC") >= 0,
+    [],
+  );
+
   const shortcuts = [
     // General
     { key: "F1", desc: "Show Shortcuts" },
@@ -19,19 +25,27 @@ export default function PosShortcutsModal({
     { key: "Enter", desc: "Search Product" },
     // Cart Navigation & Manipulation
     { key: "↑ / ↓", desc: "Navigate Cart Rows" },
-    { key: "Alt + Q", desc: "Focus Quantity of Selected Item" },
-    { key: "Alt + I", desc: "Increase Qty of Selected Item" },
-    { key: "Alt + D", desc: "Decrease Qty of Selected Item" },
-    { key: "Shift + D", desc: "Delete Selected Item" },
+    { key: "Alt Q", desc: "Focus Qty of Selected Item" },
+    { key: "Alt I", desc: "Inc. Qty of Selected Item" },
+    { key: "Alt D", desc: "Dec. Qty of Selected Item" },
+    { key: "Shift D", desc: "Delete Selected Item" },
     // Billing & Sales
     { key: "F6", desc: "New Sale (Clear Cart)" },
-    { key: "Alt + P", desc: "Save & Print Bill (Cash)" },
+    { key: "Alt P", desc: "Save & Print Bill (Cash)" },
     { key: "F2", desc: "Hold Current Sale" },
     { key: "F4", desc: "View Held Sales" },
     // Tools
-    { key: "Alt + K", desc: "Open Calculator" },
-    { key: "Alt + R", desc: "Reprint Bill" },
+    { key: "Alt K", desc: "Open Calculator" },
+    { key: "Alt R", desc: "Reprint Bill" },
   ];
+
+  const platformShortcuts = useMemo(() => {
+    if (!isMac) return shortcuts;
+    return shortcuts.map((s) => ({
+      ...s,
+      key: s.key.replace("Alt", "⌥"),
+    }));
+  }, [isMac, shortcuts]);
 
   return (
     <BaseModal
@@ -50,7 +64,7 @@ export default function PosShortcutsModal({
       // }
     >
       <div className="grid grid-cols-2 gap-3">
-        {shortcuts.map((s, i) => (
+        {platformShortcuts.map((s, i) => (
           <div
             key={i}
             className="flex justify-between items-center p-2 border rounded-lg bg-slate-50/50"

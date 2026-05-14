@@ -1,21 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import {
   MdDateRange,
-  MdEmail,
+  MdPerson,
   MdLock,
   MdLogin,
-  MdStore,
   MdVisibility,
   MdVisibilityOff,
-  MdWarning,
-  MdDevices,
-  MdVpnKey,
+  MdClose,
 } from "react-icons/md";
 import { useApi } from "../../hooks/useApi";
-
-interface LoginProps {
-  onLogin: () => void;
-}
+import toast, { Toaster } from "react-hot-toast";
+import { useLicense, validateLicenseApi } from "../../hooks/useLicense";
+import LicenseScreen from "./LicenseScreen";
+import { useAuth } from "../../context/AuthContext";
+import { ConflictModal, type ConflictInfo } from "./ConflictModal";
+import { OtpModal } from "./OtpModal";
+import { CheckingLicenseOverlay, LoadingOverlay } from "./LoginOverlays";
+import { BrandPanel, LoginHeader, LoginFooter } from "./LoginPanels";
 
 interface FinancialYear {
   id: number;
@@ -25,72 +26,154 @@ interface FinancialYear {
   end_date: string;
 }
 
-interface ConflictInfo {
-  message: string;
-  code: string;
-  can_force_terminate: boolean;
-  active_session: {
-    session_id: number;
-    device_uid: string;
-    last_seen_at: string;
-    created_at: string;
-    branch_code: string;
-    terminal_code: string;
-  };
-  attempted_login: {
-    branch_code: string;
-    terminal_code: string;
-    device_uid: string;
-    last_seen_at: string;
-  };
-}
-
-export default function Login({ onLogin }: LoginProps) {
-  const [email, setEmail] = useState("");
+export default function Login() {
+  const [userUid, setUserUid] = useState("");
   const [password, setPassword] = useState("");
   const [financialYear, setFinancialYear] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMsg, setLoadingMessage] = useState("Initializing...");
+  const [progress, setProgress] = useState(0);
   const [financialYears, setFinancialYears] = useState<FinancialYear[]>([]);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictInfo | null>(null);
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberedUsers, setRememberedUsers] = useState<string[]>([]);
   const [otp, setOtp] = useState("");
   const [otpContext, setOtpContext] = useState<any | null>(null);
 
-  const emailRef = useRef<HTMLInputElement>(null);
+  const userUidRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const { get, post } = useApi();
+  const { login } = useAuth();
+  const {
+    isLicensed,
+    isLoading: isLicenseLoading,
+    activateLicense,
+  } = useLicense();
 
-  // Auto focus on email when page loads and fetch financial years
+  // Auto focus on userUid when page loads and fetch financial years
   useEffect(() => {
-    emailRef.current?.focus();
+    userUidRef.current?.focus();
+
+    const fetchRememberedUsers = async () => {
+      console.log(
+        "Checking for remembered users...",
+        (window as any).posApi && (window as any).posApi.getRememberedUsers,
+      );
+      if ((window as any).posApi && (window as any).posApi.getRememberedUsers) {
+        try {
+          const users = await (window as any).posApi.getRememberedUsers();
+          console.log("Fetched remembered users:", users);
+          if (Array.isArray(users)) {
+            setRememberedUsers(users);
+          }
+        } catch (e) {
+          console.error(
+            "Login.tsx: Failed to fetch or prefill remembered user. This could be an IPC error.",
+            e,
+          );
+        }
+      }
+    };
+    fetchRememberedUsers();
 
     const fetchFinancialYears = async () => {
       const { data, error } = await get<FinancialYear[]>("fin-years");
       if (data && Array.isArray(data)) {
         setFinancialYears(data);
+        localStorage.setItem("cached_fin_years", JSON.stringify(data));
         // Automatically select the first financial year in the list
         if (data.length > 0) {
           setFinancialYear(data[0].fy_code);
         }
       } else if (error) {
-        console.error("Failed to load financial years:", error);
+        // Offline fallback: Load from local storage
+        const cached = localStorage.getItem("cached_fin_years");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setFinancialYears(parsed);
+              setFinancialYear(parsed[0].fy_code);
+            }
+          } catch (e) {}
+        } else {
+          console.error("Failed to load financial years:", error);
+        }
       }
     };
     fetchFinancialYears();
-  }, [get]);
+  }, [get]); // Run only once on mount
 
-  // Move focus to password when pressing Enter in email
-  const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Move focus to password when pressing Enter in userUid
+  const handleUserUidKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       passwordRef.current?.focus();
     }
   };
 
-  const processLoginSuccess = async (response: any) => {
+  const handleSuggestionClick = async (uid: string) => {
+    setUserUid(uid);
+    setShowSuggestions(false);
+
+    if (
+      (window as any).posApi &&
+      (window as any).posApi.getCredentialsForUser
+    ) {
+      try {
+        const creds = await (window as any).posApi.getCredentialsForUser(uid);
+        if (creds && creds.password) {
+          setUserUid(creds.email || uid); // using email field from DB mapping, but setting to UID
+          setPassword(creds.password);
+          setRememberMe(true);
+          passwordRef.current?.focus();
+        }
+      } catch (err) {
+        console.error("Failed to fetch credentials for user:", err);
+      }
+    }
+  };
+
+  const attemptOfflineLogin = async (userId: string, userPass: string) => {
+    try {
+      const posApi = (window as any).posApi;
+      if (posApi && posApi.offlineLogin) {
+        const res = await posApi.offlineLogin({
+          email: userId, // Assuming backend/sqlite still uses "email" for mapping offline
+          password: userPass,
+        });
+        if (res.success && res.data) {
+          toast.success("Logged in offline using cached credentials.");
+          await processLoginSuccess(res.data, userId, rememberMe);
+        } else {
+          toast.error(
+            res.error ||
+              "Offline login failed. Invalid credentials or user not cached.",
+          );
+          setIsLoading(false);
+        }
+      } else {
+        toast.error(
+          "Offline login module is not configured in the desktop app.",
+        );
+        setIsLoading(false);
+      }
+    } catch (e) {
+      console.error("Offline login error:", e);
+      toast.error("Offline login failed.");
+      setIsLoading(false);
+    }
+  };
+
+  const processLoginSuccess = async (
+    response: any,
+    userId: string,
+    shouldRemember: boolean,
+  ) => {
     // Robust payload extraction to handle variations in API response structure (Login vs OTP)
     let payload = response || {};
     console.log("Login response received:", response);
@@ -110,40 +193,89 @@ export default function Login({ onLogin }: LoginProps) {
 
     if (!payload.token) {
       console.error("Login response missing token:", response);
-      alert("Authentication failed: Invalid server response.");
+      toast.error("Authentication failed: Invalid server response.");
       setIsLoading(false);
       return;
+    }
+
+    if (shouldRemember) {
+      if ((window as any).posApi && (window as any).posApi.saveRememberedUser) {
+        console.log(`Login.tsx: Attempting to save credentials for ${userId}`);
+        await (window as any).posApi.saveRememberedUser({
+          email: userId,
+          password: password, // The password from the form state
+        });
+        console.log(
+          `Login.tsx: Successfully called saveRememberedUser for ${userId}`,
+        );
+      }
+    } else {
+      // If "Remember Me" is unchecked, remove the user from the remembered list
+      if (
+        (window as any).posApi &&
+        (window as any).posApi.removeRememberedUser
+      ) {
+        console.log(
+          `Login.tsx: Attempting to remove remembered user ${userId}`,
+        );
+        await (window as any).posApi.removeRememberedUser(userId);
+      }
     }
 
     const previousBranchCode = localStorage.getItem("branch_code") || "";
     const currentBranchCode = String(payload.user?.branch?.branch_code || "");
     const isBranchChanged = previousBranchCode !== currentBranchCode;
 
-    localStorage.setItem("auth_token", payload.token);
     localStorage.setItem("user_name", payload.user?.name || "");
     localStorage.setItem("user_id", String(payload.user?.id || ""));
     localStorage.setItem("user_role", payload.user?.role?.name || "");
     localStorage.setItem("branch_code", currentBranchCode || "");
-    localStorage.setItem("branch_name", payload.user?.branch?.accnt_name || "");
-    // localStorage.setItem(
-    //   "branch_name",
-    //   payload.user?.branch?.branch_name || "",
-    // );
+    // localStorage.setItem("branch_name", payload.user?.branch?.accnt_name || "");
+    localStorage.setItem(
+      "branch_name",
+      payload.user?.branch?.branch_name || "",
+    );
     localStorage.setItem("terminal_code", payload.terminal_code || "");
     localStorage.setItem("fy_code", payload.fy_code || "");
+    localStorage.setItem("fin_year", payload.fin_year || "");
     localStorage.setItem("login_time", payload.current_login_at || "");
 
     const posApi = (window as any).posApi;
 
+    // ── Cache user credentials & payload for future offline logins ──
+    if (posApi && posApi.cacheUserLogin && navigator.onLine) {
+      try {
+        await posApi.cacheUserLogin({
+          email: userId,
+          password: password, // from form state
+          payload: payload,
+        });
+      } catch (err) {
+        console.error("Failed to cache user for offline login:", err);
+      }
+    }
+
+    // Securely store session via context, which calls the main process
+    await login(payload.token, {
+      fy_code: payload.fy_code,
+      branch_code: currentBranchCode,
+      terminal_code: payload.terminal_code,
+      user_id: String(payload.user?.id || ""),
+      // No need to pass token here again, login function handles it
+    });
+
     if (posApi) {
       try {
-        const todayStr = new Date().toDateString();
+        const todayStr = new Date().toDateString(); // Moved up for reuse
+        let currentProgress = 10;
 
         // 1. Check and Sync Stock
         const lastStockSyncDate = localStorage.getItem(
           `last_stock_sync_${currentBranchCode}`,
         );
+        // Force sync if branch changed, otherwise only sync if it hasn't been synced today
         if (isBranchChanged || lastStockSyncDate !== todayStr) {
+          setProgress(currentProgress);
           setLoadingMessage("Syncing Stock...");
           if (posApi.syncStock) {
             await posApi.syncStock(currentBranchCode, isBranchChanged);
@@ -153,62 +285,78 @@ export default function Login({ onLogin }: LoginProps) {
             );
           }
         }
+        currentProgress += 22;
 
         // 2. Check and Sync Items
         const lastItemsSyncDate = localStorage.getItem("last_items_sync");
         if (lastItemsSyncDate !== todayStr) {
+          setProgress(currentProgress);
           setLoadingMessage("Syncing Items...");
           if (posApi.syncItems) {
             await posApi.syncItems(false);
             localStorage.setItem("last_items_sync", todayStr);
           }
         }
+        currentProgress += 22;
 
         // 3. Check and Sync Schemes
         const lastSchemesSyncDate = localStorage.getItem("last_schemes_sync");
         if (lastSchemesSyncDate !== todayStr) {
+          setProgress(currentProgress);
           setLoadingMessage("Syncing Schemes...");
           if (posApi.syncSchemes) {
             await posApi.syncSchemes(false);
             localStorage.setItem("last_schemes_sync", todayStr);
           }
         }
+        currentProgress += 22;
+
+        // 4. Check and Sync Branches
+        const lastBranchesSyncDate = localStorage.getItem("last_branches_sync");
+        if (lastBranchesSyncDate !== todayStr) {
+          setProgress(currentProgress);
+          setLoadingMessage("Syncing Branches...");
+          if (posApi.syncBranches) {
+            await posApi.syncBranches(false);
+            localStorage.setItem("last_branches_sync", todayStr);
+          }
+        }
+        currentProgress += 24;
 
         // Persist session details for background tasks (auto-start on reboot)
-        if (posApi.setLoginDetails) {
-          console.log("💾 Persisting session for auto-resume...");
-          await posApi.setLoginDetails({
-            fy_code: payload.fy_code,
-            branch_code: currentBranchCode,
-            terminal_code: payload.terminal_code,
-          });
-        } else {
-          console.warn(
-            "⚠️ posApi.setLoginDetails is not defined in preload. Session will not persist.",
-          );
-        }
+        setProgress(currentProgress);
+        setLoadingMessage("Finalizing setup...");
+        // This is now handled by the login() call from AuthContext
       } catch (error) {
         console.error("Sync failed", error);
       }
     }
 
+    setProgress(100);
     setIsLoading(false);
-    onLogin();
   };
 
-  const handleSubmit = async (forceTerminate: boolean = false) => {
-    if (!email.trim() || !password.trim()) {
-      alert("Email and Password are required.");
-      emailRef.current?.focus();
+  const handleSubmit = async () => {
+    if (!userUid.trim() || !password.trim()) {
+      toast.error("User UID and Password are required.");
+      userUidRef.current?.focus();
+      return;
+    }
+
+    if (navigator.onLine && !financialYear) {
+      toast.error("Please wait for Financial Year to load or select one.");
       return;
     }
 
     setIsLoading(true);
-    if (forceTerminate) {
-      setLoadingMessage("Terminating previous session...");
-      console.log("Force terminating session with data:", forceTerminate);
-    } else {
-      setLoadingMessage("Signing in...");
+    setProgress(10);
+    setLoadingMessage("Signing in...");
+
+    // ── 1. Check if system is offline to attempt local login ──
+    if (!navigator.onLine) {
+      setLoadingMessage("Offline detected. Attempting local login...");
+      await attemptOfflineLogin(userUid, password);
+      return;
     }
 
     try {
@@ -218,16 +366,36 @@ export default function Login({ onLogin }: LoginProps) {
         deviceUid = await posApi.getDeviceId();
       }
 
+      // VALIDATE LICENSE
+      if (posApi && posApi.getLicense) {
+        setLoadingMessage("Validating License...");
+        const storedKey = await posApi.getLicense();
+        if (storedKey) {
+          const result = await validateLicenseApi(storedKey, deviceUid, post);
+          if (!result.valid && !result.isNetworkError) {
+            toast.error(result.message);
+            if (posApi.removeLicense) {
+              await posApi.removeLicense();
+            }
+            setIsLoading(false);
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+          }
+        }
+      }
+
+      setLoadingMessage("Signing in...");
+
       const fyCode = financialYear.includes("-")
         ? financialYear.replace("-", "20")
         : financialYear;
 
       const { data, error, status } = await post("login", {
-        email,
+        user_uid: userUid,
         password,
         fy_code: fyCode,
         device_uid: deviceUid,
-        force_terminate: forceTerminate,
+        force_terminate: false,
       });
 
       if (status === 409 || (data as any)?.code === "DEVICE_LOCKED") {
@@ -239,20 +407,32 @@ export default function Login({ onLogin }: LoginProps) {
 
       if ((data as any)?.otp_required) {
         // localStorage.setItem("otp_context", JSON.stringify(data));
-        localStorage.setItem("auth_token", data.token);
         setOtpContext(data);
         setShowOtpModal(true);
         setIsLoading(false);
         return;
       }
 
+      // ── 2. Fallback if the fetch failed due to Network Error despite navigator.onLine being true ──
+      if (
+        !data &&
+        error &&
+        (error.toLowerCase().includes("fetch") ||
+          error.toLowerCase().includes("network") ||
+          error.toLowerCase().includes("failed"))
+      ) {
+        setLoadingMessage("Server unreachable. Attempting local login...");
+        await attemptOfflineLogin(userUid, password);
+        return;
+      }
+
       if (error || !data) {
-        alert(error || "Login failed");
+        toast.error(error || "Login failed");
         setIsLoading(false);
         return;
       }
 
-      await processLoginSuccess(data);
+      await processLoginSuccess(data, userUid, rememberMe);
     } catch (e) {
       console.error(e);
       setIsLoading(false);
@@ -262,11 +442,12 @@ export default function Login({ onLogin }: LoginProps) {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otp || otp.length !== 6) {
-      alert("Please enter a valid 6-digit OTP");
+      toast.error("Please enter a valid 6-digit OTP");
       return;
     }
 
     setIsLoading(true);
+    setProgress(10);
     setLoadingMessage("Verifying OTP...");
 
     try {
@@ -274,7 +455,9 @@ export default function Login({ onLogin }: LoginProps) {
       const actionCode = otpContext?.otp_policies?.[0]?.action_code;
 
       if (!branchId || !actionCode) {
-        alert("Required OTP information is missing. Please log in again.");
+        toast.error(
+          "Required OTP information is missing. Please log in again.",
+        );
         setIsLoading(false);
         return;
       }
@@ -294,7 +477,7 @@ export default function Login({ onLogin }: LoginProps) {
       console.log("OTP verification response:", { data, error });
 
       if (error || !data) {
-        alert(error || "OTP Verification failed");
+        toast.error(error || "OTP Verification failed");
         // Clear OTP input on failure
         setOtp("");
         setIsLoading(false);
@@ -310,11 +493,11 @@ export default function Login({ onLogin }: LoginProps) {
         finalData.token = temporaryToken;
       }
 
-      await processLoginSuccess(finalData);
+      await processLoginSuccess(finalData, userUid, rememberMe);
     } catch (e) {
       console.error(e);
       setIsLoading(false);
-      alert("An error occurred during verification");
+      toast.error("An error occurred during verification");
     }
   };
 
@@ -336,61 +519,105 @@ export default function Login({ onLogin }: LoginProps) {
           ? financialYear.replace("-", "20")
           : financialYear;
         await posApi.resetDatabase(fyCode);
-        alert("Database has been reset. Please login to re-sync data.");
+        toast.success("Database has been reset. Please login to re-sync data.");
       }
     } catch (error) {
       console.error("Reset failed", error);
-      alert("Reset failed");
+      toast.error("Reset failed");
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isLoading) {
+  const handleRemoveRememberedUser = async (
+    e: React.MouseEvent,
+    uid: string,
+  ) => {
+    e.stopPropagation(); // Prevent the suggestion click from firing
+    if ((window as any).posApi && (window as any).posApi.removeRememberedUser) {
+      await (window as any).posApi.removeRememberedUser(uid);
+      // Refresh the list from the main process
+      const users = await (window as any).posApi.getRememberedUsers();
+      if (Array.isArray(users)) {
+        setRememberedUsers(users);
+      }
+    }
+  };
+
+  const handleLicenseActivate = async (key: string) => {
+    setIsLoading(true);
+    setLoadingMessage("Activating License...");
+
+    const success = await activateLicense(key);
+
+    if (success) {
+      setProgress(10);
+      setLoadingMessage("Verifying Master Data Sync...");
+
+      const posApi = (window as any).posApi;
+      if (posApi) {
+        try {
+          setProgress(30);
+          setLoadingMessage("Checking Branch Sync Status...");
+          await posApi.syncBranches(false);
+
+          setProgress(60);
+          setLoadingMessage("Checking Items Sync Status...");
+          await posApi.syncItems(false);
+
+          setProgress(90);
+          setLoadingMessage("Checking Schemes Sync Status...");
+          await posApi.syncSchemes(false);
+
+          setProgress(100);
+          setLoadingMessage("Status: Already Synced / Up to Date!");
+        } catch (error) {
+          console.error("Sync error:", error);
+          setLoadingMessage("Status: Sync completed with warnings.");
+        }
+      } else {
+        setProgress(100);
+        setLoadingMessage("Status: Ready (Offline)");
+      }
+
+      // Pause briefly so the user can read the "Up to Date" status message
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+
+    setIsLoading(false);
+    return success;
+  };
+
+  // 1. Initial Check: Wait for local storage check to finish
+  if (isLicensed === null) {
+    return <CheckingLicenseOverlay />;
+  }
+
+  // 2. Block: License is Required
+  if (!isLicensed) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
-        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <h4 className="font-bold text-gray-900 text-xl mb-2">{loadingMsg}</h4>
-        <p className="text-gray-500">
-          Please wait while we set up your terminal.
-        </p>
-      </div>
+      <LicenseScreen
+        onActivate={handleLicenseActivate}
+        isLoading={isLicenseLoading}
+      />
     );
+  }
+
+  if (isLoading) {
+    return <LoadingOverlay progress={progress} loadingMsg={loadingMsg} />;
   }
 
   return (
     <>
+      <Toaster />
       <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-[#e0eafc] to-[#cfdef3]">
         <div className="bg-white shadow-2xl rounded-3xl overflow-hidden w-[850px] max-w-[90%] min-h-[500px] flex">
           {/* Left Side: Brand/Visual */}
-          <div className="hidden md:flex flex-col justify-center items-center text-white p-12 w-1/2 bg-gradient-to-br from-slate-900 to-slate-700">
-            <div className="mb-6 p-4 rounded-full bg-white/10 shadow-sm backdrop-blur-sm">
-              <MdStore size={64} className="text-white" />
-            </div>
-            <h2 className="font-bold mb-3 text-4xl text-white drop-shadow-md">
-              Market99 POS
-            </h2>
-            <p className="text-center opacity-80 text-lg">
-              Exclusively designed for Market99 retail operations.
-            </p>
-          </div>
+          <BrandPanel />
 
           {/* Right Side: Login Form */}
           <div className="w-full md:w-1/2 bg-white p-12 flex flex-col justify-center">
-            <div className="text-center mb-6">
-              <img
-                src="https://market99.com/cdn/shop/files/M_LOGO.png?v=1695998992&width=260"
-                alt="Logo"
-                className="h-12 object-contain mx-auto"
-              />
-            </div>
-
-            <div className="mb-6 text-center">
-              <h4 className="font-bold text-2xl text-gray-800">Sign In</h4>
-              <p className="text-gray-500 text-sm mt-1">
-                Enter your credentials to access the terminal
-              </p>
-            </div>
+            <LoginHeader />
 
             <form
               onSubmit={(e) => {
@@ -401,22 +628,61 @@ export default function Login({ onLogin }: LoginProps) {
             >
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                  Email Address
+                  User ID
                 </label>
-                <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all overflow-hidden">
-                  <span className="pl-3 text-gray-400">
-                    <MdEmail size={20} />
-                  </span>
-                  <input
-                    ref={emailRef}
-                    type="email"
-                    className="w-full bg-transparent border-none p-3 text-gray-700 focus:outline-none placeholder-gray-400"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={handleEmailKeyDown}
-                    required
-                    placeholder="name@example.com"
-                  />
+                <div className="relative">
+                  <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all overflow-hidden">
+                    <span className="pl-3 text-gray-400">
+                      <MdPerson size={20} />
+                    </span>
+                    <input
+                      ref={userUidRef}
+                      type="text"
+                      className="w-full bg-transparent border-none p-3 text-gray-700 focus:outline-none placeholder-gray-400"
+                      value={userUid}
+                      onChange={(e) => setUserUid(e.target.value)}
+                      onKeyDown={handleUserUidKeyDown}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() =>
+                        setTimeout(() => setShowSuggestions(false), 150)
+                      }
+                      required
+                      placeholder="Enter User ID"
+                      autoComplete="off"
+                    />
+                  </div>
+                  {showSuggestions && rememberedUsers.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                      <ul className="max-h-48 overflow-y-auto">
+                        {rememberedUsers.map((uid) => (
+                          <li
+                            key={uid}
+                            className="group flex items-center justify-between px-4 py-3 hover:bg-gray-100 cursor-pointer"
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // Prevent onBlur from firing before click
+                              handleSuggestionClick(uid);
+                            }}
+                          >
+                            <span className="text-sm text-gray-800 font-medium">
+                              {uid}
+                            </span>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleRemoveRememberedUser(e, uid);
+                              }}
+                              className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-2"
+                              title={`Forget ${uid}`}
+                            >
+                              <MdClose size={18} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -451,7 +717,19 @@ export default function Login({ onLogin }: LoginProps) {
                 </div>
               </div>
 
-              <div>
+              <div className="flex items-center justify-end">
+                <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <span className="ml-2">Remember me</span>
+                </label>
+              </div>
+
+              <div className="hidden">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Financial Year
                 </label>
@@ -471,7 +749,7 @@ export default function Login({ onLogin }: LoginProps) {
                         </option>
                       ))
                     ) : (
-                      <option value="20252026">Loading...</option>
+                      <option value="">Loading...</option>
                     )}
                   </select>
                 </div>
@@ -486,192 +764,22 @@ export default function Login({ onLogin }: LoginProps) {
               </button>
             </form>
 
-            <div className="mt-8 text-center">
-              <small className="text-gray-400 block mb-2">
-                v1.0.0 | Support: help@market99.com
-              </small>
-              <button
-                type="button"
-                className="text-sm text-red-500 hover:text-red-700 font-medium transition"
-                onClick={handleResetDatabase}
-              >
-                Reset Database
-              </button>
-            </div>
+            <LoginFooter onResetDatabase={handleResetDatabase} />
           </div>
         </div>
       </div>
 
       {/* Conflict Modal */}
       {showConflictModal && conflictData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="bg-red-50 p-6 border-b border-red-100 flex items-center gap-4">
-              <div className="bg-red-100 p-3 rounded-full text-red-600">
-                <MdWarning size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  Session Conflict
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  You are already logged in on another device.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                  <div className="flex items-center gap-2 mb-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
-                    <MdDevices size={16} /> Active Session
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Branch:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {conflictData.active_session.branch_code}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Terminal:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {conflictData.active_session.terminal_code}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">UID:</span>{" "}
-                      <span
-                        className="font-semibold text-gray-900 truncate max-w-[120px]"
-                        title={conflictData.active_session.device_uid}
-                      >
-                        {conflictData.active_session.device_uid.substring(
-                          0,
-                          10,
-                        )}
-                        ...
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Seen:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {new Date(
-                          conflictData.active_session.last_seen_at,
-                        ).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/50">
-                  <div className="flex items-center gap-2 mb-3 text-blue-600 font-medium text-xs uppercase tracking-wider">
-                    <MdDevices size={16} /> Current Device
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Branch:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {conflictData.attempted_login.branch_code}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Terminal:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {conflictData.attempted_login.terminal_code}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">UID:</span>{" "}
-                      <span
-                        className="font-semibold text-gray-900 truncate max-w-[120px]"
-                        title={conflictData.attempted_login.device_uid}
-                      >
-                        {conflictData.attempted_login.device_uid.substring(
-                          0,
-                          10,
-                        )}
-                        ...
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Seen:</span>{" "}
-                      <span className="font-semibold text-gray-900">
-                        {new Date(
-                          conflictData.attempted_login.last_seen_at,
-                        ).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <p className="text-sm text-gray-600 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-                  {conflictData.message}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
-              <button
-                onClick={() => setShowConflictModal(false)}
-                className="px-5 py-2.5 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              {conflictData.can_force_terminate && (
-                <button
-                  onClick={() => {
-                    setShowConflictModal(false);
-                    handleSubmit(true);
-                  }}
-                  className="px-5 py-2.5 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-lg hover:shadow-red-500/30 transition flex items-center gap-2"
-                >
-                  Terminate & Login
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <ConflictModal
+          conflictData={conflictData}
+          onClose={() => setShowConflictModal(false)}
+        />
       )}
 
       {/* OTP Modal */}
       {showOtpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 animate-scale-up">
-            <div className="text-center mb-4">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-3">
-                <MdVpnKey size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">
-                OTP Verification
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Enter the 6-digit code sent to your email.
-              </p>
-            </div>
-
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="flex justify-center">
-                <input
-                  type="text"
-                  maxLength={6}
-                  className="w-full text-center text-2xl font-bold tracking-widest p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  placeholder="• • • • • •"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition"
-              >
-                Verify OTP
-              </button>
-            </form>
-          </div>
-        </div>
+        <OtpModal otp={otp} setOtp={setOtp} onVerify={handleVerifyOtp} />
       )}
     </>
   );

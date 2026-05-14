@@ -1,43 +1,3 @@
-// interface PosActionButtonsProps {
-//   theme: "light" | "dark";
-//   setShowShortcuts: (show: boolean) => void;
-//   setShowCalculator: (show: boolean) => void;
-// }
-
-// export default function PosActionButtons({
-//   theme,
-//   setShowShortcuts,
-//   setShowCalculator,
-// }: PosActionButtonsProps) {
-//   return (
-//     <div className="pos-actions px-2 py-2 d-flex gap-2 flex-wrap">
-//       {[
-//         "Hold Sale",
-//         "View Hold",
-//         "New Sale",
-//         "Today's Sales",
-//         "Sync Stock",
-//         "Add Customers",
-//         "Shortcuts",
-//         "Calculator(F6)",
-//         "Invoice",
-//       ].map((btn) => (
-//         <button
-//           key={btn}
-//           className={`btn btn-sm ${theme === "dark" ? "btn-outline-light" : "btn-outline-dark"}`}
-//           onClick={() => {
-//             if (btn === "Shortcuts") setShowShortcuts(true);
-//             if (btn === "Calculator(F6)") setShowCalculator(true);
-//           }}
-//         >
-//           {btn}
-//         </button>
-//       ))}
-//       <button className="btn btn-sm btn-danger ms-auto">Reprint</button>
-//     </div>
-//   );
-// }
-
 import {
   MdPause,
   MdVisibility,
@@ -63,6 +23,8 @@ interface PosActionButtonsProps {
   onHoldSale: () => void;
   onShowHeldSales: () => void;
   onNewSale: () => void;
+  onSyncStock: () => void;
+  hideCustomerButton?: boolean;
 }
 
 export default function PosActionButtons({
@@ -75,6 +37,8 @@ export default function PosActionButtons({
   onHoldSale,
   onShowHeldSales,
   onNewSale,
+  onSyncStock,
+  hideCustomerButton,
 }: PosActionButtonsProps) {
   const buttons = [
     {
@@ -111,14 +75,18 @@ export default function PosActionButtons({
       label: "Sync Stock",
       icon: MdSync,
       color: "#8b5cf6",
-      onClick: () => {},
+      onClick: onSyncStock,
     },
-    {
-      label: "Add Customer",
-      icon: MdPersonAdd,
-      color: "#ec4899",
-      onClick: () => {},
-    },
+    ...(hideCustomerButton
+      ? []
+      : [
+          {
+            label: "Add Customer",
+            icon: MdPersonAdd,
+            color: "#ec4899",
+            onClick: () => {},
+          },
+        ]),
     {
       label: "Shortcuts",
       icon: MdKeyboard,

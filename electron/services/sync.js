@@ -4,29 +4,58 @@ import {
   swapStockTablesSqlite,
   insertSyncLogSqlite,
   createStockIndexesSqlite,
-  getLastSyncLogSqlite
+  getLastSyncLogSqlite,
+  clearSyncLogsSqlite,
 } from "../repositories/stock.sqlite.repo.js";
 import {
   createTempItemsTableSqlite,
   insertItemsBulkSqlite,
   createItemsIndexesSqlite,
-  swapItemsTablesSqlite
+  swapItemsTablesSqlite,
 } from "../repositories/item.sqlite.repo.js";
 import {
   createTempSchemeTableSqlite,
   insertSchemesBulkSqlite,
-  swapSchemeTablesSqlite
+  swapSchemeTablesSqlite,
 } from "../repositories/scheme.sqlite.repo.js";
 import {
   createTempBranchTableSqlite,
   insertBranchesBulkSqlite,
-  swapBranchTablesSqlite
+  swapBranchTablesSqlite,
 } from "../repositories/branch.sqlite.repo.js";
 // import config from "../config.cjs";
+import fs from "fs";
+import path from "path";
+import { app } from "electron";
+
+// Cache the license status to avoid repeated disk reads
+let cachedLicenseStatus = null;
+
+export function isAppLicensed() {
+  if (cachedLicenseStatus !== null) return cachedLicenseStatus;
+  try {
+    // Use electron's userData path to reliably store/check the license file
+    const userDataPath = app.getPath("userData");
+    const licenseFile = path.join(userDataPath, "pos_license.key");
+    cachedLicenseStatus = fs.existsSync(licenseFile);
+    return cachedLicenseStatus;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function updateLicenseStatus(status) {
+  cachedLicenseStatus = status;
+}
 
 // const { API_BASE_URL, API_BASE_URL2 } = config;
 
 export async function syncStockData(branchCode, isManual = false) {
+  if (!isAppLicensed()) {
+    console.log("⚠️ Application not licensed. Skipping stock sync.");
+    return;
+  }
+
   if (!branchCode) {
     // console.log("⚠️ No branch code provided. Skipping stock sync.");
     return;
@@ -37,11 +66,15 @@ export async function syncStockData(branchCode, isManual = false) {
   if (!isManual) {
     const lastLog = getLastSyncLogSqlite(statusKey);
     if (lastLog && lastLog.created_at) {
-      const lastSyncDate = new Date(lastLog.created_at.replace(" ", "T") + "Z").toDateString();
+      const lastSyncDate = new Date(
+        lastLog.created_at.replace(" ", "T") + "Z",
+      ).toDateString();
       const today = new Date().toDateString();
 
       if (lastSyncDate === today) {
-        console.log(`✅ Stock for branch ${branchCode} already synced today. Skipping auto-sync.`);
+        console.log(
+          `✅ Stock for branch ${branchCode} already synced today. Skipping auto-sync.`,
+        );
         return;
       }
     }
@@ -49,11 +82,16 @@ export async function syncStockData(branchCode, isManual = false) {
 
   console.log(`🔄 Starting Stock Sync (API)... [Manual: ${isManual}]`);
 
+  // Clear the previous table data from wms_sync_logs before inserting the new sync log
+  clearSyncLogsSqlite(true);
+
   try {
     // 1. Prepare Credentials
     const username = "mWms";
     const password = "wms@123";
-    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
+    const credentials = Buffer.from(`${username}:${password}`).toString(
+      "base64",
+    );
 
     const payload = {
       // Branch_Codes: "",
@@ -64,7 +102,7 @@ export async function syncStockData(branchCode, isManual = false) {
       RequestDate: "",
       Branch_Codes: branchCode,
     };
-   console.log("payload",payload)
+    // console.log("payload", payload);
     // 2. Fetch data from external API
     const response = await fetch("https://market99.app/wmsApp/GetStockInHand", {
       method: "POST",
@@ -76,7 +114,9 @@ export async function syncStockData(branchCode, isManual = false) {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `API request failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     const responseData = await response.json();
@@ -84,6 +124,8 @@ export async function syncStockData(branchCode, isManual = false) {
     const items = Array.isArray(responseData)
       ? responseData
       : responseData?.GetData || responseData?.Data || [];
+
+    // console.log("📦 Stock Data JSON:", JSON.stringify(items, null, 2));
 
     if (!items || items.length === 0) {
       console.log("⚠️ No stock data found in API response.");
@@ -100,7 +142,6 @@ export async function syncStockData(branchCode, isManual = false) {
     const msg = `Synced ${items.length} records successfully from API.`;
     console.log(`✅ ${msg}`);
     insertSyncLogSqlite(statusKey, msg);
-
   } catch (error) {
     console.error("❌ Sync Failed:", error.message);
     insertSyncLogSqlite("ERROR", error.message);
@@ -109,10 +150,17 @@ export async function syncStockData(branchCode, isManual = false) {
 
 // ===================================item-sync===========================================
 export async function syncItemsData(isManual = false) {
+  if (!isAppLicensed()) {
+    console.log("⚠️ Application not licensed. Skipping items sync.");
+    return;
+  }
+
   if (!isManual) {
-    const lastLog = getLastSyncLogSqlite('SUCCESS_ITEMS');
+    const lastLog = getLastSyncLogSqlite("SUCCESS_ITEMS");
     if (lastLog && lastLog.created_at) {
-      const lastSyncDate = new Date(lastLog.created_at.replace(" ", "T") + "Z").toDateString();
+      const lastSyncDate = new Date(
+        lastLog.created_at.replace(" ", "T") + "Z",
+      ).toDateString();
       const today = new Date().toDateString();
 
       if (lastSyncDate === today) {
@@ -125,61 +173,96 @@ export async function syncItemsData(isManual = false) {
   console.log(`🔄 Starting Items Sync (API)... [Manual: ${isManual}]`);
 
   try {
-    const externalApiUrl = 'https://market99.tech/api/item_master';
-    const payload = {
-      "access_key": "78f4d7d2-86b2-418e-b78c-482fadc4605e",
-      "item_code": ""
-    };
-
-    const response = await fetch(externalApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const responseData = await response.json();
-
-    // Determine if data is directly an array or inside a data property
-    let itemsToSync = [];
-    if (Array.isArray(responseData)) {
-      itemsToSync = responseData;
-    } else if (responseData && Array.isArray(responseData.data)) {
-      itemsToSync = responseData.data;
-    } else if (responseData && Array.isArray(responseData.items)) {
-      itemsToSync = responseData.items;
-    }
-
-    if (!itemsToSync || itemsToSync.length === 0) {
-      console.log("⚠️ No items found in API response.");
-      insertSyncLogSqlite("SUCCESS_ITEMS", "No items found to sync.");
-      return;
-    }
+    const externalApiUrl = "https://market99.tech/api/item_master";
 
     createTempItemsTableSqlite();
 
-    // Process in batches
-    const BATCH_SIZE = 2000;
     let totalSynced = 0;
+    let hasMore = true;
+    let lastId = 0;
 
-    for (let i = 0; i < itemsToSync.length; i += BATCH_SIZE) {
-      const batch = itemsToSync.slice(i, i + BATCH_SIZE);
-      
-      // Normalize item_code and filter invalid items
-      const validBatch = batch.map(item => {
-        const code = item.itemCode || item.item_code || item.Item_Code || item.ItemCode || item.ITEM_CODE || item['Item Code'];
-        if (!code) return null;
-        return { ...item, itemCode: code };
-      }).filter(Boolean);
-      
-      if (validBatch.length > 0) {
-        insertItemsBulkSqlite(validBatch);
-        totalSynced += validBatch.length;
+    console.log(`🔄 Fetching items from API in batches...`);
+
+    while (hasMore) {
+      const payload = {
+        access_key: "78f4d7d2-86b2-418e-b78c-482fadc4605e",
+        item_code: "",
+        last_id: lastId,
+      };
+
+      console.log(`🔄 Requesting batch with last_id: ${lastId}`);
+
+      const response = await fetch(externalApiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `API request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const responseData = await response.json();
+
+      // Determine if data is directly an array or inside a data property
+      let itemsToSync = [];
+      if (Array.isArray(responseData)) {
+        itemsToSync = responseData;
+      } else if (responseData && Array.isArray(responseData.data)) {
+        itemsToSync = responseData.data;
+      } else if (responseData && Array.isArray(responseData.items)) {
+        itemsToSync = responseData.items;
+      }
+
+      console.log(
+        `📦 Fetched Items Count from API: ${itemsToSync.length} (has_more: ${responseData.has_more})`,
+      );
+
+      if (!itemsToSync || itemsToSync.length === 0) {
+        if (totalSynced === 0) {
+          console.log("⚠️ No items found in API response.");
+          insertSyncLogSqlite("SUCCESS_ITEMS", "No items found to sync.");
+          return;
+        }
+        break; // Stop loop if a batch returns empty
+      }
+
+      // Process in batches (Required to bypass SQLite query variable limits)
+      const BATCH_SIZE = 2000;
+      for (let i = 0; i < itemsToSync.length; i += BATCH_SIZE) {
+        const batch = itemsToSync.slice(i, i + BATCH_SIZE);
+
+        // Normalize item_code and filter invalid items
+        const validBatch = batch
+          .map((item) => {
+            const code =
+              item.itemCode ||
+              item.item_code ||
+              item.Item_Code ||
+              item.ItemCode ||
+              item.ITEM_CODE ||
+              item["Item Code"];
+            if (!code) return null;
+            return { ...item, itemCode: code };
+          })
+          .filter(Boolean);
+
+        if (validBatch.length > 0) {
+          insertItemsBulkSqlite(validBatch);
+          totalSynced += validBatch.length;
+        }
+      }
+
+      // Update pagination controls for the next request loop
+      if (responseData.has_more === true) {
+        hasMore = true;
+        lastId = responseData.next_last_id;
+      } else {
+        hasMore = false;
       }
     }
 
@@ -189,18 +272,19 @@ export async function syncItemsData(isManual = false) {
     const msg = `Synced ${totalSynced} items successfully from API.`;
     console.log(`✅ ${msg}`);
     insertSyncLogSqlite("SUCCESS_ITEMS", msg);
-
   } catch (error) {
     console.error("❌ Items Sync Failed:", error.message);
     insertSyncLogSqlite("ERROR_ITEMS", error.message);
   }
 }
-// ==========================================scheme-sync=============================
+// ==========================================scheme-sync==========================================
 export async function syncSchemesData(isManual = false) {
   if (!isManual) {
-    const lastLog = getLastSyncLogSqlite('SUCCESS_SCHEMES');
+    const lastLog = getLastSyncLogSqlite("SUCCESS_SCHEMES");
     if (lastLog && lastLog.created_at) {
-      const lastSyncDate = new Date(lastLog.created_at.replace(" ", "T") + "Z").toDateString();
+      const lastSyncDate = new Date(
+        lastLog.created_at.replace(" ", "T") + "Z",
+      ).toDateString();
       const today = new Date().toDateString();
 
       if (lastSyncDate === today) {
@@ -213,23 +297,25 @@ export async function syncSchemesData(isManual = false) {
   console.log(`🔄 Starting Schemes Sync (API)... [Manual: ${isManual}]`);
 
   try {
-    const externalApiUrl = 'https://market99.tech/api/reg_offer';
+    const externalApiUrl = "https://market99.tech/api/reg_offer";
     const payload = {
-      "access_key": "78f4d7d2-86b2-418e-b78c-482fadc4605e"
+      access_key: "78f4d7d2-86b2-418e-b78c-482fadc4605e",
     };
 
     // Note: The native fetch API does not allow a body in a GET request.
     // We use POST here to safely pass the payload body, matching your other API endpoints.
     const response = await fetch(externalApiUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `API request failed: ${response.status} ${response.statusText}`,
+      );
     }
     const responseData = await response.json();
 
@@ -241,6 +327,8 @@ export async function syncSchemesData(isManual = false) {
     } else if (responseData && Array.isArray(responseData.items)) {
       items = responseData.items;
     }
+
+    // console.log("📦 Schemes Data JSON:", JSON.stringify(items, null, 2));
 
     if (!items || items.length === 0) {
       console.log("⚠️ No schemes data found in API response.");
@@ -255,19 +343,25 @@ export async function syncSchemesData(isManual = false) {
     const msg = `Synced ${items.length} schemes successfully from API.`;
     console.log(`✅ ${msg}`);
     insertSyncLogSqlite("SUCCESS_SCHEMES", msg);
-
   } catch (error) {
     console.error("❌ Schemes Sync Failed:", error.message);
     insertSyncLogSqlite("ERROR_SCHEMES", error.message);
   }
 }
 
-// ==========================================branch-sync=============================
+// ==========================================branch-sync===========================================
 export async function syncBranchesData(isManual = false) {
+  if (!isAppLicensed()) {
+    console.log("⚠️ Application not licensed. Skipping branches sync.");
+    return;
+  }
+
   if (!isManual) {
-    const lastLog = getLastSyncLogSqlite('SUCCESS_BRANCHES');
+    const lastLog = getLastSyncLogSqlite("SUCCESS_BRANCHES");
     if (lastLog && lastLog.created_at) {
-      const lastSyncDate = new Date(lastLog.created_at.replace(" ", "T") + "Z").toDateString();
+      const lastSyncDate = new Date(
+        lastLog.created_at.replace(" ", "T") + "Z",
+      ).toDateString();
       const today = new Date().toDateString();
 
       if (lastSyncDate === today) {
@@ -280,22 +374,24 @@ export async function syncBranchesData(isManual = false) {
   console.log(`🔄 Starting Branches Sync (API)... [Manual: ${isManual}]`);
 
   try {
-    const externalApiUrl = 'https://www.market99.tech/api/branchmaster';
+    const externalApiUrl = "https://www.market99.tech/api/branchmaster";
     const payload = {
-      "access_key": "8c2d7f49-3a1b-4e6c-b72a-5f1a9e2c4d8b",
-      "branch_code": ""
+      access_key: "8c2d7f49-3a1b-4e6c-b72a-5f1a9e2c4d8b",
+      branch_code: "",
     };
 
     const response = await fetch(externalApiUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `API request failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     const responseData = await response.json();
@@ -308,6 +404,8 @@ export async function syncBranchesData(isManual = false) {
     } else if (responseData && Array.isArray(responseData.items)) {
       items = responseData.items;
     }
+
+    // console.log("📦 Branches Data JSON:", JSON.stringify(items, null, 2));
 
     if (!items || items.length === 0) {
       console.log("⚠️ No branches data found in API response.");
@@ -322,7 +420,6 @@ export async function syncBranchesData(isManual = false) {
     const msg = `Synced ${items.length} branches successfully from API.`;
     console.log(`✅ ${msg}`);
     insertSyncLogSqlite("SUCCESS_BRANCHES", msg);
-
   } catch (error) {
     console.error("❌ Branches Sync Failed:", error.message);
     insertSyncLogSqlite("ERROR_BRANCHES", error.message);

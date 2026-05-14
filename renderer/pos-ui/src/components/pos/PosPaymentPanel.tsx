@@ -5,7 +5,10 @@ import {
   MdAttachMoney,
   MdCreditCard,
   MdQrCode,
+  MdEdit,
+  MdClose,
 } from "react-icons/md";
+import { useCustomerSearch } from "../../hooks/useCustomerSearch";
 
 interface PosPaymentPanelProps {
   theme: "light" | "dark";
@@ -16,6 +19,12 @@ interface PosPaymentPanelProps {
     amountReceived: number,
     transactionRef?: string,
   ) => Promise<boolean>;
+  customerKeyword?: string;
+  setCustomerKeyword?: (keyword: string) => void;
+  selectedCustomer?: any;
+  setSelectedCustomer?: (customer: any) => void;
+  onAddNewCustomer?: () => void;
+  onEditSelectedCustomer?: () => void;
 }
 
 export default function PosPaymentPanel({
@@ -23,9 +32,14 @@ export default function PosPaymentPanel({
   roundedGrandTotal,
   roundOff,
   onPaymentComplete,
+  customerKeyword,
+  setCustomerKeyword,
+  selectedCustomer,
+  setSelectedCustomer,
+  onAddNewCustomer,
+  onEditSelectedCustomer,
 }: PosPaymentPanelProps) {
   const [amountReceived, setAmountReceived] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
   const [paymentMode, setPaymentMode] = useState<"cash" | "card" | "upi">(
     "cash",
   );
@@ -34,6 +48,14 @@ export default function PosPaymentPanel({
   const isDark = theme === "dark";
   const received = parseFloat(amountReceived) || 0;
   const balance = received - roundedGrandTotal;
+
+  const {
+    searchCustomers,
+    loading: customerLoading,
+    results: customerResults,
+    searched: customerSearched,
+    clearSearch,
+  } = useCustomerSearch();
 
   useEffect(() => {
     setAmountReceived(roundedGrandTotal.toFixed(2));
@@ -55,7 +77,25 @@ export default function PosPaymentPanel({
       setAmountReceived("");
       setTransactionRef("");
       setPaymentMode("cash");
+      setCustomerKeyword?.("");
     }
+  };
+
+  useEffect(() => {
+    if (!customerKeyword) {
+      clearSearch();
+    }
+  }, [customerKeyword, clearSearch]);
+
+  const handleCustomerSearch = () => {
+    if (customerKeyword?.trim()) {
+      searchCustomers(customerKeyword);
+    }
+  };
+
+  const handleSelectCustomer = (customer: any) => {
+    setSelectedCustomer?.(customer);
+    setCustomerKeyword?.(customer.mobile || customer.name);
   };
 
   return (
@@ -74,23 +114,89 @@ export default function PosPaymentPanel({
             <button
               className={`p-1 rounded-full border transition-colors ${isDark ? "border-gray-500 text-gray-300 hover:bg-gray-700 hover:text-white" : "border-blue-200 text-blue-600 hover:bg-blue-50"}`}
               title="Add New Customer"
+              onClick={onAddNewCustomer}
             >
               <MdPersonAdd size={16} />
             </button>
           </div>
-          <div className="flex rounded-md shadow-sm">
+          <div className="relative">
             <span
-              className={`inline-flex items-center px-3 rounded-l-md border border-r-0 ${isDark ? "bg-gray-700 border-gray-600 text-gray-300" : "bg-gray-50 border-gray-300 text-gray-500"}`}
+              className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               <MdSearch size={18} />
             </span>
             <input
               type="text"
-              className={`flex-1 block w-full px-3 py-2 rounded-r-md border focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${isDark ? "bg-gray-900 text-white border-gray-600 placeholder-gray-500" : "bg-white text-gray-900 border-gray-300 placeholder-gray-400"}`}
+              className={`block w-full pl-9 pr-8 py-2 rounded-md border focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${isDark ? "bg-gray-900 text-white border-gray-600 placeholder-gray-500" : "bg-white text-gray-900 border-gray-300 placeholder-gray-400"}`}
               placeholder="Search Name / Mobile"
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
+              value={customerKeyword || ""}
+              onChange={(e) => setCustomerKeyword?.(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCustomerSearch()}
             />
+            {customerKeyword && (
+              <button
+                type="button"
+                onClick={() => setCustomerKeyword?.("")}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full ${isDark ? "text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:bg-gray-100"}`}
+              >
+                <MdClose size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Customer Results */}
+          <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+            {customerLoading && (
+              <div className="text-center text-xs opacity-75 py-2">
+                Loading...
+              </div>
+            )}
+            {!customerLoading &&
+              customerResults?.map((c) => {
+                const isSelected = selectedCustomer?.id === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleSelectCustomer(c)}
+                    className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
+                      isSelected
+                        ? isDark
+                          ? "bg-blue-800 text-white"
+                          : "bg-blue-100 text-blue-800"
+                        : isDark
+                          ? "hover:bg-gray-700"
+                          : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="font-semibold">{c.name}</div>
+                    <div className="text-xs opacity-75">{c.mobile}</div>
+                  </button>
+                );
+              })}
+            {!customerLoading &&
+              customerSearched &&
+              customerResults?.length === 0 &&
+              !selectedCustomer && (
+                <div
+                  className={`text-center text-xs p-2 rounded-md ${isDark ? "bg-yellow-900/50 text-yellow-300" : "bg-yellow-50 text-yellow-700"}`}
+                >
+                  No customer found.
+                </div>
+              )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="mt-2">
+            {selectedCustomer && selectedCustomer.id !== 1 && (
+              <button
+                type="button"
+                onClick={onEditSelectedCustomer}
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-colors ${isDark ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"}`}
+              >
+                <MdEdit size={16} /> Edit Customer
+              </button>
+            )}
           </div>
         </div>
       </div>

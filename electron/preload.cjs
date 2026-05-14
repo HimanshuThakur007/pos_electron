@@ -16,6 +16,34 @@ const posApi = {
   },
 
   /**
+   * Get all items at once
+   */
+  getAllItems() {
+    return ipcRenderer.invoke("get-all-items");
+  },
+
+  /**
+   * Get total item count
+   */
+  getItemsCount() {
+    return ipcRenderer.invoke("get-items-count");
+  },
+
+  /**
+   * Get all stock at once
+   */
+  getAllStock() {
+    return ipcRenderer.invoke("get-all-stock");
+  },
+
+  /**
+   * Get total stock count for a branch
+   */
+  getStockCount(branchCode) {
+    return ipcRenderer.invoke("get-stock-count", branchCode);
+  },
+
+  /**
    * Save billing data
    * @param {object} bill
    */
@@ -50,8 +78,8 @@ const posApi = {
   /**
    * Check DB connection status
    */
-  checkDbConnection() {
-    return ipcRenderer.invoke("check-db-connection");
+  checkDbConnection(branchCode) {
+    return ipcRenderer.invoke("check-db-connection", branchCode);
   },
 
   /**
@@ -66,6 +94,27 @@ const posApi = {
   },
 
   /**
+   * Get paginated items from SQLite
+   */
+  getItemsPaginated(params) {
+    return ipcRenderer.invoke("get-items-paginated", params);
+  },
+
+  /**
+   * Get paginated stock from SQLite
+   */
+  getStockPaginated(params) {
+    return ipcRenderer.invoke("get-stock-paginated", params);
+  },
+
+  /**
+   * Get paginated branches from SQLite
+   */
+  getBranchesPaginated(params) {
+    return ipcRenderer.invoke("get-branches-paginated", params);
+  },
+
+  /**
    * Get all schemes from SQLite
    */
   getSchemes() {
@@ -73,10 +122,38 @@ const posApi = {
   },
 
   /**
+   * Get total schemes count
+   */
+  getSchemesCount() {
+    return ipcRenderer.invoke("get-schemes-count");
+  },
+
+  /**
+   * Get paginated schemes from SQLite
+   */
+  getSchemesPaginated(params) {
+    return ipcRenderer.invoke("get-schemes-paginated", params);
+  },
+
+  /**
    * Get all branches from SQLite
    */
   getBranches() {
     return ipcRenderer.invoke("get-branches");
+  },
+
+  /**
+   * Get total branches count
+   */
+  getBranchesCount() {
+    return ipcRenderer.invoke("get-branches-count");
+  },
+
+  /**
+   * Get branch details by code
+   */
+  getBranchByCode(branchCode) {
+    return ipcRenderer.invoke("get-branch-by-code", branchCode);
   },
 
   /**
@@ -118,7 +195,10 @@ const posApi = {
    * Sync a specific transaction manually
    */
   syncSpecificTransaction(bill_no, fy_code) {
-    return ipcRenderer.invoke("sync-specific-transaction", { bill_no, fy_code });
+    return ipcRenderer.invoke("sync-specific-transaction", {
+      bill_no,
+      fy_code,
+    });
   },
 
   /**
@@ -129,10 +209,24 @@ const posApi = {
   },
 
   /**
+   * Trigger manual shift sync
+   */
+  triggerShiftSync() {
+    return ipcRenderer.invoke("trigger-shift-sync");
+  },
+
+  /**
    * Get last synced invoice
    */
   getLastSyncedInvoice(params) {
     return ipcRenderer.invoke("get-last-synced-invoice", params);
+  },
+
+  /**
+   * Get all invoice series
+   */
+  getAllInvoiceSeries(fy_code) {
+    return ipcRenderer.invoke("get-all-invoice-series", fy_code);
   },
 
   /**
@@ -168,8 +262,8 @@ const posApi = {
   /**
    * Get count of all pending sync items (transactions and invoices)
    */
-  getPendingSyncCount(fy_code) {
-    return ipcRenderer.invoke("get-pending-sync-count", fy_code);
+  getPendingSyncCount(fy_code, options) {
+    return ipcRenderer.invoke("get-pending-sync-count", fy_code, options);
   },
 
   /**
@@ -179,6 +273,19 @@ const posApi = {
     return ipcRenderer.invoke("set-login-details", details);
   },
 
+  /**
+   * Get the persisted session details (including auth token)
+   */
+  getSession() {
+    return ipcRenderer.invoke("get-session");
+  },
+
+  /**
+   * Clear the persisted session details on logout
+   */
+  clearSession() {
+    return ipcRenderer.invoke("clear-session");
+  },
   /**
    * Print receipt silently or save as PDF
    */
@@ -211,10 +318,102 @@ const posApi = {
     return ipcRenderer.invoke("get-device-id");
   },
 
+  /**
+   * Save the terminal license key
+   */
+  saveLicense(key) {
+    return ipcRenderer.invoke("save-license", key);
+  },
+
+  /**
+   * Get the stored terminal license key
+   */
+  getLicense() {
+    return ipcRenderer.invoke("get-license");
+  },
+
+  /**
+   * Remove the terminal license key
+   */
+  removeLicense() {
+    return ipcRenderer.invoke("remove-license");
+  },
+
+  /**
+   * Validate GST via Node to bypass CORS
+   */
+  validateGst(gstin) {
+    return ipcRenderer.invoke("validate-gst", gstin);
+  },
+
+  /**
+   * Get all remembered user emails
+   */
+  getRememberedUsers() {
+    return ipcRenderer.invoke("get-remembered-users");
+  },
+
+  /**
+   * Get credentials for a specific remembered user
+   */
+  getCredentialsForUser(email) {
+    return ipcRenderer.invoke("get-credentials-for-user", email);
+  },
+
+  /**
+   * Save a user's credentials
+   */
+  saveRememberedUser(credentials) {
+    return ipcRenderer.invoke("save-remembered-user", credentials);
+  },
+
+  /**
+   * Remove a remembered user
+   */
+  removeRememberedUser(email) {
+    return ipcRenderer.invoke("remove-remembered-user", email);
+  },
+
+  /**
+   * Terminal Session
+   */
+  openTerminalSession(data) {
+    return ipcRenderer.invoke("open-terminal-session", data);
+  },
+  getActiveTerminalSession(data) {
+    return ipcRenderer.invoke("get-active-terminal-session", data);
+  },
+  closeTerminalSession(id, data) {
+    return ipcRenderer.invoke("close-terminal-session", { id, data });
+  },
+  getLastClosedSession(data) {
+    return ipcRenderer.invoke("get-last-closed-session", data);
+  },
+
+  /**
+   * Offline Login & Credentials Caching
+   */
+  offlineLogin(credentials) {
+    return ipcRenderer.invoke("offline-login", credentials);
+  },
+  cacheUserLogin(data) {
+    if (!data || !data.email || !data.password || !data.payload) {
+      return Promise.reject(
+        new Error(
+          "Invalid cache data: email, password, and payload are required",
+        ),
+      );
+    }
+    return ipcRenderer.invoke("cache-user-login", data);
+  },
+
+  /**
+   * Log a deleted cart item to the database
+   */
+  logDeletedItem(data) {
+    return ipcRenderer.invoke("log-deleted-item", data);
+  },
 };
 
 // Expose API safely & immutably
-contextBridge.exposeInMainWorld(
-  "posApi",
-  Object.freeze(posApi)
-);
+contextBridge.exposeInMainWorld("posApi", Object.freeze(posApi));

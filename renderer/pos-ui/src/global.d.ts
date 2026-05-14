@@ -5,6 +5,7 @@ declare global {
     posApi?: {
       checkDbConnection: () => Promise<any>;
       getItem: (code: string) => Promise<any>;
+      getAllItems: () => Promise<any[]>;
       saveBill: (bill: any) => Promise<{ status: string; message?: string }>;
       getStockByLogicUserCodeSqlite: (code: string) => Promise<any[]>;
       getAllStock: () => Promise<any[]>;
@@ -12,19 +13,39 @@ declare global {
       triggerBackgroundSync: (fy_code?: string | null) => void;
       triggerInvoiceSync: () => void;
       onSyncStatusChange: (callback: (status: string) => void) => () => void;
+      saveLicense: (key: string) => Promise<any>;
+      getLicense: () => Promise<string | null>;
+      removeLicense: () => Promise<any>;
       getLastBill: (params: {
         branch_code: string;
         terminal_code: string;
         cashier_id: string;
         fy_code?: string;
+        isB2B?: boolean;
+        doc_type?: number;
       }) => Promise<any>;
       getLastSyncedInvoice: (params: {
         branch_code: string;
         terminal_code: string;
         cashier_id: string;
         fy_code?: string;
+        isB2B?: boolean;
+        doc_type?: number;
       }) => Promise<any>;
-      getBranches: () => Promise<any[]>;
+      getSchemes: () => Promise<any[]>; // Keep for now for other components
+      getBranches: () => Promise<any[]>; // Keep for now for other components
+      getBranchesPaginated: (
+        params: any,
+      ) => Promise<{ data: any[]; total: number }>;
+      getSchemesPaginated: (
+        params: any,
+      ) => Promise<{ data: any[]; total: number }>;
+      getItemsPaginated: (
+        params: any,
+      ) => Promise<{ data: any[]; total: number }>;
+      getStockPaginated: (
+        params: any,
+      ) => Promise<{ data: any[]; total: number }>;
       getTransactions: (params?: any) => Promise<any[]>;
       holdSale: (
         data: any,
@@ -39,6 +60,7 @@ declare global {
       printReceipt: (
         htmlContent: string,
       ) => Promise<{ status: string; message?: string }>;
+      validateGst: (gstin: string) => Promise<any>;
     };
   }
 }

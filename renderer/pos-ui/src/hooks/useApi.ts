@@ -1,84 +1,110 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
+import { useAuth } from "../context/AuthContext";
 
-export const useApi = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const API_BASE_URL =
+  (window as any).posApi?.apiBaseUrl2 || "https://market99.tech/api/";
 
-  const request = useCallback(
-    async <T>(
+export function useApi() {
+  const { token, logout } = useAuth();
+  // console.log("useApi initialized with token:", token);
+  const apiFetch = useCallback(
+    async (
       endpoint: string,
-      method: "GET" | "POST" = "GET",
-      body?: any,
+      options: RequestInit = {},
       customToken?: string,
     ) => {
-      setLoading(true);
-      setError(null);
+      const headers = new Headers(options.headers || {});
+      const effectiveToken = customToken || token;
+
+      if (effectiveToken) {
+        headers.set("Authorization", `Bearer ${effectiveToken}`);
+      }
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+      headers.set("Accept", "application/json");
+
       try {
-        const token = customToken || localStorage.getItem("auth_token");
-        const headers: HeadersInit = {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-
-        const config: RequestInit = {
-          method,
+        const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+          ...options,
           headers,
+        });
+
+        if (response.status === 401 && !customToken) {
+          // Unauthorized, likely expired token.
+          // For an offline-first POS, we DO NOT force logout here.
+          // This allows the user to stay on the page and continue offline billing.
+          return {
+            error: "Server session expired. Local billing remains active.",
+          };
+        }
+
+        const responseData = await response.json().catch(() => ({})); // Handle empty/non-json responses
+
+        if (!response.ok) {
+          return {
+            error:
+              responseData.message || `HTTP error! status: ${response.status}`,
+            status: response.status,
+            data: responseData,
+          };
+        }
+
+        return { data: responseData, status: response.status };
+      } catch (error: any) {
+        return {
+          error: error.message || "Network request failed",
+          status: 500,
         };
-
-        if (body) {
-          config.body = JSON.stringify(body);
-        }
-
-        // Remove leading slash to ensure correct path concatenation
-        const cleanEndpoint = endpoint.startsWith("/")
-          ? endpoint.slice(1)
-          : endpoint;
-
-        // Get URL from Electron config (via preload)
-        const baseUrl = (window as any).posApi?.apiBaseUrl2;
-
-        if (!baseUrl) {
-          throw new Error(
-            "API URL is missing. Ensure you are running in Electron and preload is working.",
-          );
-        }
-
-        const res = await fetch(`${baseUrl}/${cleanEndpoint}`, config);
-        const data = await res.json();
-
-        if (!res.ok) {
-          const error: any = new Error(
-            data.message || `Request failed with status ${res.status}`,
-          );
-          error.data = data;
-          error.status = res.status;
-          throw error;
-        }
-
-        return { data: data as T, error: null, status: res.status };
-      } catch (err: any) {
-        const msg = err.message || "Something went wrong";
-        setError(msg);
-        return { data: err.data || null, error: msg, status: err.status || 0 };
-      } finally {
-        setLoading(false);
       }
     },
-    [],
+    [token, logout],
   );
 
   const get = useCallback(
-    async <T>(endpoint: string, customToken?: string) =>
-      request<T>(endpoint, "GET", undefined, customToken),
-    [request],
+    <T>(
+      endpoint: string,
+    ): Promise<{ data?: T; error?: string; status?: number }> => {
+      return apiFetch(endpoint, { method: "GET" });
+    },
+    [apiFetch],
   );
 
   const post = useCallback(
-    async <T>(endpoint: string, body: any, customToken?: string) =>
-      request<T>(endpoint, "POST", body, customToken),
-    [request],
+    <T>(
+      endpoint: string,
+      body: any,
+      customToken?: string,
+    ): Promise<{ data?: T; error?: string; status?: number }> => {
+      return apiFetch(
+        endpoint,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+        customToken,
+      );
+    },
+    [apiFetch],
   );
 
-  return { loading, error, get, post };
-};
+  const put = useCallback(
+    <T>(
+      endpoint: string,
+      body: any,
+      customToken?: string,
+    ): Promise<{ data?: T; error?: string; status?: number }> => {
+      return apiFetch(
+        endpoint,
+        {
+          method: "PUT",
+          body: JSON.stringify(body),
+        },
+        customToken,
+      );
+    },
+    [apiFetch],
+  );
+
+  return { get, post, put };
+}

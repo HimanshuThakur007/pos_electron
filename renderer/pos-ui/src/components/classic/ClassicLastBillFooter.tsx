@@ -1,4 +1,5 @@
 import { Printer } from "lucide-react";
+import { useMemo } from "react";
 
 interface LastBill {
   invoice?: string;
@@ -22,50 +23,84 @@ function fmtMoney(v: number | string | undefined) {
 function fmtTime(t: string | number | Date | undefined) {
   if (!t) return "--:--";
   try {
-    return new Date(t).toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    let dateObj = new Date(t);
+
+    // Handle SQLite UTC timestamp "YYYY-MM-DD HH:MM:SS" which might be parsed as local or invalid
+    if (
+      isNaN(dateObj.getTime()) ||
+      (typeof t === "string" && t.includes(" ") && !t.includes("T"))
+    ) {
+      dateObj = new Date(String(t).replace(" ", "T") + "Z");
+    }
+
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } else {
+      // Fallback: Strips the seconds from a raw time string like "10:20:30 AM" -> "10:20 AM"
+      return typeof t === "string"
+        ? t.replace(/(:\d{2})(?=\s?[a-zA-Z]{2}|$)/, "")
+        : String(t);
+    }
   } catch {
     return "--:--";
   }
 }
 
-function StatChip({
-  label,
-  value,
-  valueClass = "text-white",
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
-      <span className="text-[11px] text-white/70 whitespace-nowrap">
-        {label}
-      </span>
-      <span className={`text-xs font-semibold whitespace-nowrap ${valueClass}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
 function ShortcutChip({
   keyLabel,
   label,
+  onClick,
 }: {
   keyLabel: string;
   label: string;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 shrink-0">
+  const content = (
+    <>
       <span className="text-[11px] font-bold text-[#9DB0FF]">{keyLabel}</span>
       <span className="text-[11px] text-white/80 whitespace-nowrap">
         {label}
       </span>
-    </div>
+    </>
+  );
+  const baseClass =
+    "flex items-center gap-1.5 hover:bg-white/10 px-3 py-1.5 shrink-0 transition-colors focus:outline-none";
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${baseClass} cursor-pointer active:scale-95`}
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className={baseClass}>{content}</div>;
+}
+
+function BillStat({
+  label,
+  value,
+  valueColor,
+  hideClass,
+}: {
+  label: string;
+  value: string;
+  valueColor: string;
+  hideClass: string;
+}) {
+  return (
+    <>
+      <span className={`${hideClass} text-white/30 px-1`}>|</span>
+      <span className={`${hideClass} text-white/70`}>{label}:</span>
+      <span className={`${hideClass} font-bold ${valueColor}`}>{value}</span>
+    </>
   );
 }
 
@@ -73,6 +108,24 @@ export default function LastBillFooter({
   lastBill,
   onReprintClick,
 }: LastBillFooterProps) {
+  const isMac = useMemo(
+    () => navigator.userAgent.toUpperCase().indexOf("MAC") >= 0,
+    [],
+  );
+
+  const triggerShortcut = (key: string, code: string, altKey = false) => {
+    const target = document.activeElement || document.body;
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key,
+        code,
+        altKey,
+        bubbles: true,
+      }),
+    );
+  };
+
+  // console.log("Rendering ClassicLastBillFooter with lastBill:", lastBill);
   return (
     <div className="w-full z-[40] shrink-0">
       <div className="mx-0 border-t border-[#243553] bg-gradient-to-r from-[#0F203C] via-[#132744] to-[#172E4E]">
@@ -84,63 +137,82 @@ export default function LastBillFooter({
                 No previous bill
               </div>
             ) : (
-              <div className="min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#2E3B57] bg-[#1B2A46] px-2.5 py-1.5 shrink-0">
-                  <span className="text-[11px] text-white/70">Last Bill</span>
-                  <span className="text-xs font-bold text-[#FFD36A] whitespace-nowrap">
-                    {lastBill.invoice || "-"}
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5 rounded-lg border border-[#2E3B57] bg-[#1B2A46] px-3 py-1.5 shrink-0 overflow-x-auto no-scrollbar text-[11px] whitespace-nowrap">
+                <span className="text-white/70">Last Bill:</span>
+                <span className="font-bold text-[#FFD36A]">
+                  {lastBill.invoice || "-"}
+                </span>
 
-                <StatChip
-                  label="Time"
-                  value={fmtTime(lastBill.time)}
-                  valueClass="text-[#BFD3FF]"
-                />
+                <span className="text-white/30 px-1">|</span>
+                <span className="font-semibold text-[#BFD3FF]">
+                  {fmtTime(lastBill.time)}
+                </span>
 
-                <div className="hidden sm:block">
-                  <StatChip
-                    label="Bill Amount"
-                    value={fmtMoney(lastBill.amount)}
-                    valueClass="text-[#FFD36A]"
-                  />
-                </div>
-
-                <div className="hidden md:block">
-                  <StatChip
-                    label="Qty"
-                    value={String(lastBill.qty ?? 0)}
-                    valueClass="text-white"
-                  />
-                </div>
-
-                <div className="hidden lg:block">
-                  <StatChip
-                    label="Received"
-                    value={fmtMoney(lastBill.received)}
-                    valueClass="text-[#86EFAC]"
-                  />
-                </div>
-
-                <div className="hidden xl:block">
-                  <StatChip
-                    label="Change"
-                    value={fmtMoney(lastBill.change)}
-                    valueClass="text-[#FCA5A5]"
-                  />
-                </div>
+                {[
+                  {
+                    label: "Amt",
+                    value: fmtMoney(lastBill.amount),
+                    valueColor: "text-[#FFD36A]",
+                    hideClass: "hidden sm:inline",
+                  },
+                  {
+                    label: "Qty",
+                    value: String(lastBill.qty ?? 0),
+                    valueColor: "text-white",
+                    hideClass: "hidden md:inline",
+                  },
+                  {
+                    label: "Rcvd",
+                    value: fmtMoney(lastBill.received),
+                    valueColor: "text-[#86EFAC]",
+                    hideClass: "hidden lg:inline",
+                  },
+                  {
+                    label: "Change",
+                    value: fmtMoney(lastBill.change),
+                    valueColor: "text-[#FCA5A5]",
+                    hideClass: "hidden xl:inline",
+                  },
+                ].map((stat, index) => (
+                  <BillStat key={index} {...stat} />
+                ))}
               </div>
             )}
           </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden md:flex items-center gap-2 overflow-x-auto no-scrollbar border-l border-[#2E3B57] pl-3">
-              <ShortcutChip keyLabel="ESC" label="Search" />
-              <ShortcutChip keyLabel="ALT + K" label="Calculator" />
-              <ShortcutChip keyLabel="F2" label="Hold Bill" />
-              <ShortcutChip keyLabel="F7" label="Customer" />
-              <ShortcutChip keyLabel="F9" label="Payment" />
+            <div className="hidden lg:flex items-center overflow-x-auto no-scrollbar rounded-lg border border-white/10 bg-black/20 divide-x divide-white/10 mr-2">
+              {[
+                {
+                  keyLabel: "ESC",
+                  label: "Search",
+                  onClick: () => triggerShortcut("Escape", "Escape"),
+                },
+                {
+                  keyLabel: isMac ? "⌥ K" : "ALT K",
+                  label: "Calculator",
+                  onClick: () => triggerShortcut("k", "KeyK", true),
+                },
+                {
+                  keyLabel: "F2",
+                  label: "Hold Bill",
+                  onClick: () => triggerShortcut("F2", "F2"),
+                },
+                {
+                  keyLabel: "F7",
+                  label: "Customer",
+                  onClick: () => triggerShortcut("F7", "F7"),
+                },
+                {
+                  keyLabel: "F9",
+                  label: "Payment",
+                  onClick: () =>
+                    window.dispatchEvent(new CustomEvent("openPaymentModal")),
+                },
+              ].map((shortcut, index) => (
+                <ShortcutChip key={index} {...shortcut} />
+              ))}
             </div>
 
             <button
@@ -151,6 +223,9 @@ export default function LastBillFooter({
             >
               <Printer size={14} />
               <span>Reprint</span>
+              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded">
+                {isMac ? "⌥" : "Alt"} R
+              </kbd>
             </button>
           </div>
         </div>

@@ -5,6 +5,7 @@ export function useSystemState(fyCode: string, onLogout?: () => void) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState("idle");
+  const [syncMetrics, setSyncMetrics] = useState<any>(null);
   const [manualMode, setManualMode] = useState("online");
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -36,9 +37,15 @@ export function useSystemState(fyCode: string, onLogout?: () => void) {
 
     let unsubscribe = () => {};
     if (window.posApi && window.posApi.onSyncStatusChange) {
-      unsubscribe = window.posApi.onSyncStatusChange((status: string) =>
-        setSyncStatus(status),
-      );
+      unsubscribe = window.posApi.onSyncStatusChange((payload: any) => {
+        // Handle both legacy string payloads and new { status, metrics } objects
+        if (typeof payload === "string") {
+          setSyncStatus(payload);
+        } else if (payload && payload.status) {
+          setSyncStatus(payload.status);
+          if (payload.metrics) setSyncMetrics(payload.metrics);
+        }
+      });
     }
 
     return () => {
@@ -104,6 +111,7 @@ export function useSystemState(fyCode: string, onLogout?: () => void) {
     toggleTheme,
     isOnline,
     syncStatus,
+    syncMetrics,
     manualMode,
     setManualMode,
     currentTime,

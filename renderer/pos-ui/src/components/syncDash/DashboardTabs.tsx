@@ -5,11 +5,13 @@ type TabType =
   | "b2bSync"
   | "invoiceSeries"
   | "stocks"
-  | "schemes";
+  | "schemes"
+  | "comparisonData";
 
 const TABS = [
-  { id: "retailBills", label: "Sale Bills" },
-  { id: "b2bBills", label: "B2B Bills" },
+  { id: "comparisonData", label: "Comparison Data" },
+  { id: "retailBills", label: "Sale Bills Print" },
+  { id: "b2bBills", label: "B2B Bills Print" },
   { id: "retailSync", label: "Sales Sync Tracker" },
   { id: "b2bSync", label: "B2B Sync Tracker" },
   { id: "invoiceSeries", label: "Invoice Sync Data" },

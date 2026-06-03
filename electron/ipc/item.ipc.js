@@ -4,6 +4,7 @@ import {
   getItemByCodeSqlite,
   getAllItemsSqlite,
   getItemCountSqlite,
+  getItemAnalyticsSqlite,
 } from "../repositories/item.sqlite.repo.js";
 
 ipcMain.handle("get-item", async (_, code) => {
@@ -16,6 +17,10 @@ ipcMain.handle("get-all-items", async () => {
 
 ipcMain.handle("get-items-count", async () => {
   return getItemCountSqlite();
+});
+
+ipcMain.handle("get-item-analytics", async () => {
+  return getItemAnalyticsSqlite();
 });
 
 ipcMain.handle("sync-items", async (_, isManual = true) => {

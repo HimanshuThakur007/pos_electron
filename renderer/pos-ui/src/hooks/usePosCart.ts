@@ -5,6 +5,7 @@ import {
   recalculateCart,
   createNewItem,
   validateStock,
+  isSchemeBranchApplicable,
 } from "../utils/posUtils";
 import toast from "react-hot-toast";
 
@@ -43,7 +44,7 @@ export function usePosCart(
           const updated = prev.map((item) =>
             item.id === existingInState.id ? { ...item, qty: newQty } : item,
           );
-          return recalculateCart(updated);
+          return recalculateCart(updated, userDetails?.branchCode);
         }
 
         const stock = Number(product.Stock_Qty) || 0;
@@ -55,10 +56,24 @@ export function usePosCart(
 
         const newItem = createNewItem(product);
         newItem.hsn_code = product.hsn_code || ""; // Explicitly retain hsn_code
-        return recalculateCart([...prev, newItem]);
+
+        // If the scheme is restricted to another branch, remove it from the cart item completely
+        if (
+          !isSchemeBranchApplicable(
+            newItem.scheme_branch_code,
+            userDetails?.branchCode,
+          )
+        ) {
+          newItem.schm_type = undefined;
+          newItem.schm_camp_grp = undefined;
+          newItem.group_name = undefined;
+          newItem.scheme_branch_code = undefined;
+        }
+
+        return recalculateCart([...prev, newItem], userDetails?.branchCode);
       });
     },
-    [scanInputRef],
+    [scanInputRef, userDetails],
   );
 
   const removeFromCart = useCallback(
@@ -78,7 +93,12 @@ export function usePosCart(
         }
       }
 
-      setCart((prev) => recalculateCart(prev.filter((item) => item.id !== id)));
+      setCart((prev) =>
+        recalculateCart(
+          prev.filter((item) => item.id !== id),
+          userDetails?.branchCode,
+        ),
+      );
       setTimeout(() => scanInputRef.current?.focus(), 0);
     },
     [cart, scanInputRef, userDetails],
@@ -89,48 +109,57 @@ export function usePosCart(
     setTimeout(() => scanInputRef.current?.focus(), 0);
   }, [scanInputRef]);
 
-  const updateQty = useCallback((id: string, delta: number) => {
-    setCart((prev) => {
-      const itemInState = prev.find((i) => i.id === id);
-      if (!itemInState) return prev;
-
-      const newQty = itemInState.qty + delta;
-      if (!validateStock(itemInState.stock, newQty)) return prev;
-
-      const finalQty = Math.max(1, newQty);
-
-      const updated = prev.map((item) =>
-        item.id === id ? { ...item, qty: finalQty } : item,
-      );
-      return recalculateCart(updated);
-    });
-  }, []);
-
-  const handleQtyChange = useCallback((id: string, val: string) => {
-    const newQty = parseInt(val);
-    setCart((prev) => {
-      const itemInState = prev.find((i) => i.id === id);
-      if (!itemInState) return prev;
-      if (!validateStock(itemInState.stock, newQty)) return prev;
-
-      const finalQty = isNaN(newQty) ? 0 : newQty;
-      const updated = prev.map((item) =>
-        item.id === id ? { ...item, qty: finalQty } : item,
-      );
-      return recalculateCart(updated);
-    });
-  }, []);
-
-  const handleQtyBlur = useCallback((id: string, qty: number) => {
-    if (qty <= 0) {
+  const updateQty = useCallback(
+    (id: string, delta: number) => {
       setCart((prev) => {
+        const itemInState = prev.find((i) => i.id === id);
+        if (!itemInState) return prev;
+
+        const newQty = itemInState.qty + delta;
+        if (!validateStock(itemInState.stock, newQty)) return prev;
+
+        const finalQty = Math.max(1, newQty);
+
         const updated = prev.map((item) =>
-          item.id === id ? { ...item, qty: 1 } : item,
+          item.id === id ? { ...item, qty: finalQty } : item,
         );
-        return recalculateCart(updated);
+        return recalculateCart(updated, userDetails?.branchCode);
       });
-    }
-  }, []);
+    },
+    [userDetails],
+  );
+
+  const handleQtyChange = useCallback(
+    (id: string, val: string) => {
+      const newQty = parseInt(val);
+      setCart((prev) => {
+        const itemInState = prev.find((i) => i.id === id);
+        if (!itemInState) return prev;
+        if (!validateStock(itemInState.stock, newQty)) return prev;
+
+        const finalQty = isNaN(newQty) ? 0 : newQty;
+        const updated = prev.map((item) =>
+          item.id === id ? { ...item, qty: finalQty } : item,
+        );
+        return recalculateCart(updated, userDetails?.branchCode);
+      });
+    },
+    [userDetails],
+  );
+
+  const handleQtyBlur = useCallback(
+    (id: string, qty: number) => {
+      if (qty <= 0) {
+        setCart((prev) => {
+          const updated = prev.map((item) =>
+            item.id === id ? { ...item, qty: 1 } : item,
+          );
+          return recalculateCart(updated, userDetails?.branchCode);
+        });
+      }
+    },
+    [userDetails],
+  );
 
   const totals = useMemo(() => {
     const totalQty = cart.reduce((acc, item) => acc + item.qty, 0);

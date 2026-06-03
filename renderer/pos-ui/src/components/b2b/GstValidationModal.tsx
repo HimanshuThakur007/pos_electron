@@ -57,6 +57,8 @@ export default function GstValidationModal({
   theme = "light",
 }: GstValidationModalProps) {
   const [gstin, setGstin] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [view, setView] = useState<"input" | "address">("input");
@@ -83,6 +85,8 @@ export default function GstValidationModal({
   useEffect(() => {
     if (show) {
       setGstin("");
+      setMobile("");
+      setEmail("");
       setError("");
       setView("input");
       setAddresses([]);
@@ -100,6 +104,10 @@ export default function GstValidationModal({
     const advError = validateGSTAdvanced(value);
     if (advError) {
       setError(advError);
+      return;
+    }
+    if (mobile.trim().length !== 10) {
+      setError("Invalid Mobile Number");
       return;
     }
 
@@ -144,6 +152,8 @@ export default function GstValidationModal({
         onSuccess(value, {
           company: data.company_details,
           selectedAddress: allAddresses[0] || null,
+          mobile: mobile.trim(),
+          email: email.trim(),
         });
       }
     } catch (err) {
@@ -156,10 +166,13 @@ export default function GstValidationModal({
     onSuccess(gstin, {
       company: companyDetails,
       selectedAddress: addr,
+      mobile: mobile.trim(),
+      email: email.trim(),
     });
   };
 
-  const isDisabled = !!error || gstin.length !== 15 || isLoading;
+  const isDisabled =
+    !!error || gstin.length !== 15 || mobile.length !== 10 || isLoading;
 
   const footer = (
     <div className="flex justify-end gap-3 w-full">
@@ -254,53 +267,115 @@ export default function GstValidationModal({
       width="450px"
       footer={footer}
     >
-      <div className="py-2">
-        <label
-          className={`block text-sm font-medium mb-2 ${
-            theme === "dark" ? "text-gray-300" : "text-gray-700"
-          }`}
-        >
-          GSTIN Number <span className="text-red-500">*</span>
-        </label>
-        <input
-          ref={inputRef}
-          type="text"
-          className={`block w-full px-3 py-2 rounded-md border focus:ring-2 focus:outline-none transition-colors uppercase ${
-            error
-              ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-              : "focus:ring-blue-500 focus:border-blue-500 " +
-                (theme === "dark"
-                  ? "bg-gray-800 border-gray-600 text-white placeholder-gray-500"
-                  : "bg-white border-gray-300 text-gray-900 placeholder-gray-400")
-          }`}
-          value={gstin}
-          onChange={(e) => {
-            const value = e.target.value.toUpperCase();
-            setGstin(value);
-            if (value.length === 15) {
-              if (!gstRegex.test(value)) {
-                setError("Invalid GST format");
-                return;
+      <div className="py-2 space-y-4">
+        <div>
+          <label
+            className={`block text-sm font-medium mb-2 ${
+              theme === "dark" ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            GSTIN Number <span className="text-red-500">*</span>
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            className={`block w-full px-3 py-2 rounded-md border focus:ring-2 focus:outline-none transition-colors uppercase ${
+              error?.includes("GST")
+                ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                : "focus:ring-blue-500 focus:border-blue-500 " +
+                  (theme === "dark"
+                    ? "bg-gray-800 border-gray-600 text-white placeholder-gray-500"
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-400")
+            }`}
+            value={gstin}
+            onChange={(e) => {
+              const value = e.target.value.toUpperCase();
+              setGstin(value);
+              if (value.length === 15) {
+                if (!gstRegex.test(value)) {
+                  setError("Invalid GST format");
+                  return;
+                }
+                const advError = validateGSTAdvanced(value);
+                if (advError) {
+                  setError(advError);
+                  return;
+                }
+                setError("");
+              } else {
+                setError("");
               }
-              const advError = validateGSTAdvanced(value);
-              if (advError) {
-                setError(advError);
-                return;
-              }
-              setError("");
-            } else {
-              setError("");
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !isDisabled) handleValidate();
-            else if (e.key === "Escape") onClose();
-          }}
-          placeholder="e.g. 22AAAAA0000A1Z5"
-          maxLength={15}
-        />
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isDisabled) handleValidate();
+              else if (e.key === "Escape") onClose();
+            }}
+            placeholder="e.g. 22AAAAA0000A1Z5"
+            maxLength={15}
+          />
+        </div>
+
+        <div>
+          <label
+            className={`block text-sm font-medium mb-2 ${
+              theme === "dark" ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            Mobile Number <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            className={`block w-full px-3 py-2 rounded-md border focus:ring-2 focus:outline-none transition-colors ${
+              error?.includes("Mobile")
+                ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                : "focus:ring-blue-500 focus:border-blue-500 " +
+                  (theme === "dark"
+                    ? "bg-gray-800 border-gray-600 text-white placeholder-gray-500"
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-400")
+            }`}
+            value={mobile}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setMobile(val);
+              if (error?.includes("Mobile")) setError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isDisabled) handleValidate();
+              else if (e.key === "Escape") onClose();
+            }}
+            placeholder="10-digit mobile number"
+            maxLength={10}
+          />
+        </div>
+
+        <div>
+          <label
+            className={`block text-sm font-medium mb-2 ${
+              theme === "dark" ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            Email ID
+          </label>
+          <input
+            type="email"
+            className={`block w-full px-3 py-2 rounded-md border focus:ring-2 focus:outline-none transition-colors ${
+              "focus:ring-blue-500 focus:border-blue-500 " +
+              (theme === "dark"
+                ? "bg-gray-800 border-gray-600 text-white placeholder-gray-500"
+                : "bg-white border-gray-300 text-gray-900 placeholder-gray-400")
+            }`}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isDisabled) handleValidate();
+              else if (e.key === "Escape") onClose();
+            }}
+            placeholder="e.g. contact@company.com"
+          />
+        </div>
+
         {error && (
-          <div className="text-red-500 text-sm mt-1.5 font-medium">{error}</div>
+          <div className="text-red-500 text-sm pt-2 font-medium">{error}</div>
         )}
       </div>
     </BaseModal>

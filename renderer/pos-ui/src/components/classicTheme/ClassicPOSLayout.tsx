@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useContext } from "react";
 import SettingsModal from "../modals/SettingsModal";
-import ClassicTopBar from "./ClassicTopBar";
 import ClassicCartArea from "./ClassicCartArea";
 import ClassicRightPanel from "./ClassicRightPanel";
 import ClassicLastBillFooter from "./ClassicLastBillFooter";
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 // import { usePosContext } from "../../context/PosContext";
 import { usePosContext } from "../../context/PosContext";
+import { HeaderPropsContext } from "../../context/HeaderContext";
 
 export interface PosUserDetails {
   id?: string;
@@ -88,11 +88,12 @@ export default function ClassicPOSLayout({
 }: ClassicPOSLayoutProps) {
   const posLogic = usePosContext();
   const {
-    userDetails,
-    currentTime,
-    onLogout,
+    // userDetails,
+    // currentTime,
+    // onLogout,
     isOnline,
     syncStatus,
+    syncMetrics,
     netOffline,
     manualMode,
     setManualMode,
@@ -134,9 +135,59 @@ export default function ClassicPOSLayout({
     isInvoiceLoading,
     isServerOnline,
     isNetworkOnline,
+    openCustomerDisplay,
+    customerWindow,
   } = posLogic;
 
   const invoiceNumber = generateInvoiceNumber();
+
+  const headerContext = useContext(HeaderPropsContext);
+  const netMsg =
+    syncStatus === "error"
+      ? "Sync Failed"
+      : syncStatus === "syncing"
+        ? "Syncing..."
+        : "";
+  const netBackOnline = isOnline && syncStatus === "synced";
+
+  useEffect(() => {
+    if (headerContext) {
+      headerContext.setHeaderProps({
+        onOpenSettings: () => setShowSettingsModal(true),
+        netOffline,
+        isServerOnline,
+        isNetworkOnline,
+        netMsg,
+        netBackOnline,
+        manualMode,
+        setManualMode,
+        isB2B,
+        onEndDayClick,
+        syncStatus,
+        syncMetrics,
+        openCustomerDisplay,
+        displayWindow: !!customerWindow,
+      });
+    }
+    return () => {
+      headerContext?.setHeaderProps({});
+    };
+  }, [
+    headerContext,
+    netOffline,
+    isServerOnline,
+    isNetworkOnline,
+    netMsg,
+    netBackOnline,
+    manualMode,
+    setManualMode,
+    isB2B,
+    onEndDayClick,
+    syncStatus,
+    syncMetrics,
+    openCustomerDisplay,
+    customerWindow,
+  ]);
 
   // --- Local State for Classic UI ---
   const [leftCollapsed, setLeftCollapsed] = useState(true);
@@ -295,44 +346,8 @@ export default function ClassicPOSLayout({
     },
   ];
 
-  // Network Status Mapping
-  const netMsg =
-    syncStatus === "error"
-      ? "Sync Failed"
-      : syncStatus === "syncing"
-        ? "Syncing..."
-        : "";
-
   return (
-    <div className="h-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
-      {/* TOP BAR */}
-      <ClassicTopBar
-        user={userDetails}
-        now={currentTime}
-        formatTime={(d) =>
-          d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-        }
-        formatDate={(d) =>
-          d.toLocaleDateString("en-US", {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-          })
-        }
-        logout={onLogout}
-        // uiVariant={uiVariant}
-        onOpenSettings={() => setShowSettingsModal(true)}
-        netOffline={netOffline}
-        isServerOnline={isServerOnline}
-        isNetworkOnline={isNetworkOnline}
-        netMsg={netMsg}
-        netBackOnline={isOnline && syncStatus === "synced"}
-        manualMode={manualMode}
-        setManualMode={setManualMode}
-        isB2B={isB2B}
-        onEndDayClick={onEndDayClick}
-      />
-
+    <div className="h-full flex flex-col bg-slate-100 overflow-hidden font-sans">
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 min-h-0 grid grid-cols-12 p-2 gap-2">
         {/* LEFT: Quick Actions */}

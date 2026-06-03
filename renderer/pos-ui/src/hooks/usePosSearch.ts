@@ -59,19 +59,18 @@ export function usePosSearch(
           Lot_MRP: item.Lot_MRP,
           Stock_Qty: String(item.Stock_Qty),
           taxRate: item.taxRate,
-          printDesc: item.printDesc || item.t2_printDesc,
+          printDesc: item.printDesc || "",
           schm_type: item.schm_type,
           schm_camp_grp: item.schm_camp_grp,
           group_name: item.group_name,
-          hsn_code:
-            item.hsn_code || item.t2_hsn_code
-              ? String(item.hsn_code || item.t2_hsn_code).split(".")[0]
-              : "",
+          scheme_branch_code: item.scheme_branch_code,
+          hsn_code: item.hsn_code ? String(item.hsn_code).split(".")[0] : "",
         }));
 
         if (mappedData.length === 1) {
           playSound("success");
           addToCart(mappedData[0]);
+          // console.log("Product added to cart:", mappedData[0]);
           setSearchTerm("");
           setSearchResults([]);
           setTimeout(() => scanInputRef.current?.focus(), 100);

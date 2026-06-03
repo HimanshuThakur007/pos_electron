@@ -3,7 +3,6 @@ export {};
 declare global {
   interface Window {
     posApi?: {
-      checkDbConnection: () => Promise<any>;
       getItem: (code: string) => Promise<any>;
       getAllItems: () => Promise<any[]>;
       saveBill: (bill: any) => Promise<{ status: string; message?: string }>;
@@ -12,7 +11,7 @@ declare global {
       syncStock: () => Promise<any[]>;
       triggerBackgroundSync: (fy_code?: string | null) => void;
       triggerInvoiceSync: () => void;
-      onSyncStatusChange: (callback: (status: string) => void) => () => void;
+      onSyncStatusChange: (callback: (payload: any) => void) => () => void;
       saveLicense: (key: string) => Promise<any>;
       getLicense: () => Promise<string | null>;
       removeLicense: () => Promise<any>;
@@ -53,6 +52,7 @@ declare global {
       getHoldSales: (params?: any) => Promise<{ status: string; data: any[] }>;
       deleteHeldSale: (id: number) => Promise<{ status: string }>;
       getPendingSyncCount: (fy_code: string) => Promise<number>;
+      getDbSize: () => Promise<number>;
       syncSpecificTransaction: (
         bill_no: string,
         fy_code: string,

@@ -107,7 +107,7 @@ export default function MainMenuGrid({
             className={`group relative overflow-hidden rounded-2xl bg-white/90 border border-slate-200 p-6 hover:bg-white transition-all duration-300 ease-out transform-gpu hover:-translate-y-1 text-left flex flex-col focus:outline-none focus:ring-4 focus:ring-blue-400/50 focus:border-blue-400 ${item.hoverBorder} ${item.hoverShadow}`}
           >
             <div
-              className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-opacity duration-500 ease-out opacity-10 group-hover:opacity-20 pointer-events-none transform-gpu ${item.bgGlow}`}
+              className={`absolute top-0 right-0 w-24 h-24 rounded-full transition-opacity duration-500 ease-out opacity-5 group-hover:opacity-10 pointer-events-none transform-gpu ${item.bgGlow}`}
             />
             <div
               className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-md ${item.iconBg}`}

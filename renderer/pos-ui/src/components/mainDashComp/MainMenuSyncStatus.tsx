@@ -75,7 +75,7 @@ export default function MainMenuSyncStatus({
 
   return (
     <div className="w-full max-w-5xl mb-8">
-      <div className="bg-white/60 backdrop-blur-md border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
         <div className="flex items-center gap-x-5 gap-y-2 flex-wrap">
           <div className="flex items-center gap-2.5">
             <UploadCloud

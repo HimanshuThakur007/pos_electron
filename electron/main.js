@@ -289,9 +289,13 @@ import "./ipc/remembered_users.ipc.js";
 import "./ipc/terminal_session.ipc.js";
 import "./ipc/auth.ipc.js";
 import "./ipc/cart_log.ipc.js";
+import "./ipc/export.ipc.js";
+import "./ipc/chatbot.ipc.js";
 
-import { checkConnection as checkMysqlConnection } from "./database/mysql.js";
-import { checkConnection as checkSqliteConnection } from "./database/sqlite.js";
+import {
+  checkConnection as checkSqliteConnection,
+  db,
+} from "./database/sqlite.js";
 import {
   syncStockData,
   syncItemsData,
@@ -308,6 +312,7 @@ import {
 import { initRememberedUsersTable } from "./repositories/remembered_users.sqlite.repo.js";
 import { initUsersCacheTable } from "./repositories/user.sqlite.repo.js";
 import { initCartDeleteLogTable } from "./repositories/cart_delete_log.sqlite.repo.js";
+import { getActiveTerminalSessionSqlite } from "./repositories/terminal_session.sqlite.repo.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -376,8 +381,69 @@ class PowerManager {
 
 const powerManager = new PowerManager();
 
+function runDatabaseCleanup() {
+  try {
+    log.info("🧹 Running 30-day database cleanup...");
+    const days = 30;
+
+    // Core master data and system tables that should NEVER be purged by time
+    const excludedTables = [
+      "items",
+      "items_temp",
+      "wms_stock_in_hand",
+      "wms_stock_in_hand_temp",
+      "m99_reg_offer",
+      "m99_reg_offer_temp",
+      "branches",
+      "branches_temp",
+      "invoice_series",
+      "remembered_users",
+      "sqlite_sequence",
+      "sessions",
+      "users_cache",
+    ];
+
+    db.transaction(() => {
+      const tables = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
+        .all();
+
+      for (const { name } of tables) {
+        if (excludedTables.includes(name)) continue;
+
+        const columns = db.prepare(`PRAGMA table_info("${name}")`).all();
+        let dateCol =
+          columns.find((c) => c.name === "created_at") ||
+          columns.find((c) => c.name === "closed_at") ||
+          columns.find((c) => c.name === "time");
+
+        if (dateCol) {
+          const info = db
+            .prepare(
+              `DELETE FROM "${name}" WHERE datetime("${dateCol.name}") < datetime('now', '-${days} days')`,
+            )
+            .run();
+          if (info.changes > 0)
+            log.info(
+              `🗑️ Deleted ${info.changes} old rows from ${name} (older than ${days} days)`,
+            );
+        }
+      }
+    })();
+    log.info("✅ Database cleanup completed.");
+  } catch (err) {
+    log.error("❌ Database cleanup failed:", err.message);
+  }
+}
+
 app.setName("M99 POS");
 app.disableHardwareAcceleration();
+
+// ⚠️ Ignore SSL errors in development to fix net_error -202 (ERR_CERT_AUTHORITY_INVALID)
+if (!app.isPackaged) {
+  app.commandLine.appendSwitch("ignore-certificate-errors");
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -474,6 +540,20 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("com.m99.pos");
   powerManager.init();
 
+  ipcMain.handle("get-db-size", () => {
+    try {
+      const pageCount = db.prepare("PRAGMA page_count").get();
+      const pageSize = db.prepare("PRAGMA page_size").get();
+      return (
+        (pageCount ? pageCount.page_count : 0) *
+        (pageSize ? pageSize.page_size : 0)
+      );
+    } catch (err) {
+      log.error("Failed to get DB size", err);
+      return 0;
+    }
+  });
+
   if (app.isPackaged) {
     app.setLoginItemSettings({ openAtLogin: true, path: app.getPath("exe") });
   }
@@ -490,13 +570,32 @@ app.whenReady().then(async () => {
     return;
   }
 
-  const session = getLoginSession() || {};
-  const branchCode = process.env.BRANCH_CODE || session.branch_code || "";
+  // Auto-delete transactional/log records older than 30 days
+  runDatabaseCleanup();
+  setInterval(runDatabaseCleanup, 24 * 60 * 60 * 1000);
 
-  const isOnline = await checkMysqlConnection();
-  if (isOnline) {
-    powerManager.setSync(true);
-    syncStockData(branchCode).catch(log.error);
+  const session = getLoginSession() || {};
+  const branchCode = session.branch_code || "";
+  const terminalCode = session.terminal_code || "A";
+
+  powerManager.setSync(true);
+
+  if (branchCode) {
+    const activeSession = getActiveTerminalSessionSqlite(
+      branchCode,
+      terminalCode,
+    );
+    if (!activeSession) {
+      syncStockData(branchCode).catch(log.error);
+      syncItemsData().catch(log.error);
+      syncSchemesData().catch(log.error);
+      syncBranchesData().catch(log.error);
+    } else {
+      log.info(
+        "Active session found. Skipping background auto-sync on startup.",
+      );
+    }
+  } else {
     syncItemsData().catch(log.error);
     syncSchemesData().catch(log.error);
     syncBranchesData().catch(log.error);
@@ -515,6 +614,10 @@ app.whenReady().then(async () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+app.on("window-all-closed", () => {});
+app.on("before-quit", () => {
+  isQuitting = true;
 });
 app.on("window-all-closed", () => {});
 app.on("before-quit", () => {

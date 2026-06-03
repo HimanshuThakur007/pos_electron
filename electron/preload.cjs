@@ -30,6 +30,13 @@ const posApi = {
   },
 
   /**
+   * Get item analytics (API vs Local DB counts)
+   */
+  getItemAnalytics() {
+    return ipcRenderer.invoke("get-item-analytics");
+  },
+
+  /**
    * Get all stock at once
    */
   getAllStock() {
@@ -83,6 +90,13 @@ const posApi = {
   },
 
   /**
+   * Get local database size
+   */
+  getDbSize() {
+    return ipcRenderer.invoke("get-db-size");
+  },
+
+  /**
    * Get stock from SQLite by LogicUserCode
    * @param {string} code
    */
@@ -133,6 +147,13 @@ const posApi = {
    */
   getSchemesPaginated(params) {
     return ipcRenderer.invoke("get-schemes-paginated", params);
+  },
+
+  /**
+   * Get scheme analytics from SQLite
+   */
+  getSchemeAnalytics() {
+    return ipcRenderer.invoke("get-scheme-analytics");
   },
 
   /**
@@ -412,6 +433,21 @@ const posApi = {
    */
   logDeletedItem(data) {
     return ipcRenderer.invoke("log-deleted-item", data);
+  },
+
+  /**
+   * Export Encrypted Backup for Admin
+   */
+  exportSecureBackup(data) {
+    return ipcRenderer.invoke("export-secure-backup", data);
+  },
+
+  /**
+   * Chatbot Query
+   * @param {string} text
+   */
+  chatbotQuery(text) {
+    return ipcRenderer.invoke("chatbot-query", text);
   },
 };
 

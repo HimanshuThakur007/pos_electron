@@ -45,7 +45,7 @@ export const getStockByLogicUserCodeSqlite = (logicUserCode) => {
       `;
 
       if (offersTableExists) {
-        selectFields += `, t4.schm_type, t4.schm_camp_grp, t4.itm_code, t4.group_name`;
+        selectFields += `, t4.schm_type, t4.schm_camp_grp, t4.itm_code, t4.group_name, t4.branch_code as scheme_branch_code`;
         joinClause += ` LEFT JOIN m99_reg_offer t4 ON t1.LogicUserCode = t4.itm_code COLLATE NOCASE`;
       }
 
@@ -78,6 +78,7 @@ export const getStockByLogicUserCodeSqlite = (logicUserCode) => {
 
       const taxRate = row.t2_taxRate || 0;
       const hsn_code = row.t2_hsn_code || null;
+      const printDesc = row.t2_printDesc || null;
 
       // Group ONLY by Lot_MRP
       const key = row.Lot_MRP;
@@ -87,6 +88,7 @@ export const getStockByLogicUserCodeSqlite = (logicUserCode) => {
           ...row,
           itemCode,
           itemDesc,
+          printDesc,
           taxRate,
           hsn_code,
           Stock_Qty: 0,
@@ -100,18 +102,32 @@ export const getStockByLogicUserCodeSqlite = (logicUserCode) => {
       groupedMap[key].Stock_Qty += Number(row.Stock_Qty || 0);
     }
 
-    return Object.values(groupedMap).map((item) => ({
-      ...item,
-      Stock_Qty: Number(item.Stock_Qty).toFixed(2),
-      schm_type: item.schm_type || null,
-      // Join unique schemes back into a string
-      schm_camp_grp:
-        item.schemes && item.schemes.size > 0
-          ? Array.from(item.schemes).join(" ")
-          : null,
-      group_name: item.group_name || null,
-      itm_code: item.itm_code || null,
-    }));
+    return Object.values(groupedMap).map((item) => {
+      // Extract out the aliased columns and internal sets to keep the payload clean
+      const {
+        t2_itemCode,
+        t2_printDesc,
+        t2_taxRate,
+        t2_hsn_code,
+        itm_code,
+        schemes,
+        scheme_branch_code,
+        ...cleanedItem
+      } = item;
+
+      return {
+        ...cleanedItem,
+        Stock_Qty: Number(item.Stock_Qty).toFixed(2),
+        schm_type: item.schm_type || null,
+        // Join unique schemes back into a string
+        schm_camp_grp:
+          item.schemes && item.schemes.size > 0
+            ? Array.from(item.schemes).join(" ")
+            : null,
+        group_name: item.group_name || null,
+        scheme_branch_code: scheme_branch_code || null,
+      };
+    });
   } catch (err) {
     console.error("❌ SQLite Read Error:", err.message);
     return [];

@@ -8,6 +8,7 @@ import {
 import { API_BASE_URL2 } from "../config.js";
 import { getLoginSession } from "../repositories/session.sqlite.repo.js";
 import { triggerShiftSync } from "../services/shiftSync.js";
+import { db } from "../database/sqlite.js";
 
 ipcMain.handle("open-terminal-session", async (_, data) => {
   try {
@@ -116,7 +117,23 @@ ipcMain.handle("close-terminal-session", async (_, { id, data }) => {
       data,
     );
     try {
-      const terminalId = data.shift_id;
+      let terminalId = data.shift_id;
+
+      // If the frontend didn't pass the shift_id (e.g., restoring a previous day's shift),
+      // fetch it directly from the local database using the internal SQLite id.
+      if (!terminalId) {
+        try {
+          const row = db
+            .prepare(`SELECT shift_id FROM terminal_sessions WHERE id = ?`)
+            .get(id);
+          if (row && row.shift_id) {
+            terminalId = row.shift_id;
+          }
+        } catch (dbErr) {
+          console.error("Failed to fetch shift_id from DB:", dbErr.message);
+        }
+      }
+
       console.log(`Attempting to close shift for terminal ID: ${terminalId}`);
       if (terminalId) {
         const closePayload = {
@@ -147,9 +164,10 @@ ipcMain.handle("close-terminal-session", async (_, { id, data }) => {
           const result = await response.json().catch(() => null);
           console.log("📡 Close Shift API Response (Online Error):", result);
           if (
-            result &&
-            result.message &&
-            result.message.toLowerCase().includes("already closed")
+            response.status === 404 ||
+            (result &&
+              result.message &&
+              result.message.toLowerCase().includes("already closed"))
           ) {
             sync_status = 1;
           }

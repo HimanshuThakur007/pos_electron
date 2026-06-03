@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { showDialog } from "../components/common/GlobalAlert";
 
 export function useMainMenuLogic(onLogoutProp: () => void) {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
   const [forceEndDay, setForceEndDay] = useState(false);
+  const [isDayEndedForToday, setIsDayEndedForToday] = useState(false);
   const [syncStatus, setSyncStatus] = useState({
     items: false,
     stock: false,
@@ -46,8 +48,10 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
 
   const handleLogoutClick = useCallback(async () => {
     if (pendingTxCount > 0) {
-      toast.error(
+      showDialog(
         `Cannot log out. ${pendingTxCount} transaction(s) have not been synced.`,
+        "error",
+        "Logout Restricted",
       );
       return;
     }
@@ -116,8 +120,8 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
           const count = await (window.posApi as any).getPendingSyncCount(
             currentFyCode,
             {
-              strictlyPending: true,
-              excludeFailed: true,
+              strictlyPending: false,
+              excludeFailed: false,
             },
           );
           setPendingTxCount(count);
@@ -249,19 +253,59 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
             return;
           setActiveSession(null);
           setForceEndDay(false);
-          setShowStartDayModal(true);
           const lastSessionRes = (window as any).electron?.ipcRenderer?.invoke
             ? await (window as any).electron.ipcRenderer.invoke(
                 "get-last-closed-session",
                 reqData,
               )
             : await (window as any).posApi?.getLastClosedSession?.(reqData);
+
+          let dayEndedToday = false;
           if (lastSessionRes?.success && lastSessionRes?.session) {
             setPreviousClosing(lastSessionRes.session.closing_amount);
             setPreviousDifference(lastSessionRes.session.difference);
+
+            const openTimeStr =
+              lastSessionRes.session.raw_opened_at ||
+              lastSessionRes.session.opened_at ||
+              lastSessionRes.session.created_at;
+            if (openTimeStr) {
+              let openDate = new Date();
+              if (typeof openTimeStr === "number")
+                openDate = new Date(openTimeStr);
+              else if (typeof openTimeStr === "string") {
+                const ddMatch = openTimeStr.match(/^(\d{2})-(\d{2})-(\d{4})/);
+                if (ddMatch) {
+                  openDate = new Date(
+                    Number(ddMatch[3]),
+                    Number(ddMatch[2]) - 1,
+                    Number(ddMatch[1]),
+                  );
+                } else {
+                  let str = openTimeStr;
+                  if (str.includes(" ") && !str.includes("T"))
+                    str = str.replace(" ", "T") + "Z";
+                  const d = new Date(str);
+                  if (!isNaN(d.getTime())) openDate = d;
+                }
+              }
+              const today = new Date();
+              if (
+                openDate.getDate() === today.getDate() &&
+                openDate.getMonth() === today.getMonth() &&
+                openDate.getFullYear() === today.getFullYear()
+              ) {
+                dayEndedToday = true;
+              }
+            }
           } else {
             setPreviousClosing(null);
             setPreviousDifference(null);
+          }
+
+          setIsDayEndedForToday(dayEndedToday);
+          if (!dayEndedToday) {
+            setShowStartDayModal(true);
           }
         }
       } catch (e) {
@@ -354,29 +398,9 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
           setShowEndDayModal(false);
           toast.success("Day ended successfully!");
           setActiveSession(null);
-          if (forceEndDay) {
-            setForceEndDay(false);
-            setShowStartDayModal(true);
-            const checkReq = {
-              branch_code: branchCode,
-              terminal_code: terminalCode,
-            };
-            const lastSessionRes = (window as any).electron?.ipcRenderer?.invoke
-              ? await (window as any).electron.ipcRenderer.invoke(
-                  "get-last-closed-session",
-                  checkReq,
-                )
-              : await (window as any).posApi?.getLastClosedSession?.(checkReq);
-            if (lastSessionRes?.success && lastSessionRes?.session) {
-              setPreviousClosing(lastSessionRes.session.closing_amount);
-              setPreviousDifference(lastSessionRes.session.difference);
-            } else {
-              setPreviousClosing(null);
-              setPreviousDifference(null);
-            }
-          } else {
-            onLogoutProp();
-          }
+          setForceEndDay(false);
+          setIsDayEndedForToday(true);
+          onLogoutProp();
         } else {
           toast.error("Failed to end day: " + (res?.error || "Unknown error"));
         }
@@ -384,7 +408,7 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
         toast.error("Failed to end day: " + err.message);
       }
     },
-    [activeSession, forceEndDay, branchCode, terminalCode, onLogoutProp],
+    [activeSession, onLogoutProp],
   );
 
   useEffect(() => {
@@ -440,6 +464,14 @@ export function useMainMenuLogic(onLogoutProp: () => void) {
       (!activeSession || activeSession.status?.toLowerCase() !== "open") &&
       (item.path === "/pos" || item.path === "/b2b-sale")
     ) {
+      if (isDayEndedForToday) {
+        showDialog(
+          "Day has already been ended for today. You cannot start a new sale.",
+          "error",
+          "Day Ended",
+        );
+        return;
+      }
       toast.error("Please start the day before starting a sale.");
       setShowStartDayModal(true);
       return;

@@ -252,6 +252,52 @@ export const getAllItemsSqlite = () => {
 };
 
 /* ======================================================
+   GET ITEM ANALYTICS
+====================================================== */
+export const getItemAnalyticsSqlite = () => {
+  try {
+    const tableExists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(TABLE_NAME);
+    if (!tableExists) return { apiCount: 0, localDbCount: 0 };
+
+    const result = db
+      .prepare(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`)
+      .get();
+    const localDbCount = result ? result.count : 0;
+
+    let apiCount = 0;
+    const logTableExists = db
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='wms_sync_logs'`,
+      )
+      .get();
+
+    if (logTableExists) {
+      const logRow = db
+        .prepare(
+          `SELECT message FROM wms_sync_logs WHERE status = 'SUCCESS_ITEMS' ORDER BY id DESC LIMIT 1`,
+        )
+        .get();
+      if (logRow && logRow.message) {
+        const match = logRow.message.match(/Synced (\d+) items/);
+        if (match) {
+          apiCount = parseInt(match[1], 10);
+        }
+      }
+    }
+
+    return {
+      apiCount: apiCount || localDbCount, // Fallback to local count if no log found
+      localDbCount,
+    };
+  } catch (err) {
+    console.error("❌ Failed to get item analytics:", err.message);
+    return { apiCount: 0, localDbCount: 0 };
+  }
+};
+
+/* ======================================================
    GET COUNT
 ====================================================== */
 export const getItemCountSqlite = () => {

@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
-import BaseModal from "../common/BaseModal";
-import SettingsModal from "../modals/SettingsModal";
-import ProductSelectionModal from "../modals/ProductSelectionModal";
-import PosShortcutsModal from "../modals/PosShortcutsModal";
-import Calculator from "../calculator/Calculator";
+// import BaseModal from "../../components/common/BaseModal";
+import SettingsModal from "../../components/modals/SettingsModal";
+import ProductSelectionModal from "../../components/modals/ProductSelectionModal";
+import PosShortcutsModal from "../../components/modals/PosShortcutsModal";
+import Calculator from "../../components/calculator/Calculator";
 import { usePosLogic } from "../../hooks/usePosLogic";
-import TransactionsModal from "../modals/TransactionsModal";
-import HeldSalesModal from "../modals/HoldSalesModal";
-import HoldNoteModal from "../modals/HoldNoteModal";
-import ReprintModal from "../modals/ReprintModal";
+import TransactionsModal from "../../components/modals/TransactionsModal";
+import HeldSalesModal from "../../components/modals/HoldSalesModal";
+import HoldNoteModal from "../../components/modals/HoldNoteModal";
+import ReprintModal from "../../components/modals/ReprintModal";
 import "../../style/pos.css";
 import toast from "react-hot-toast";
-import ClassicPOSLayout from "../classic/ClassicPOSLayout";
-import GstValidationModal from "./GstValidationModal";
+import ClassicPOSLayout from "../../components/classicTheme/ClassicPOSLayout";
+import GstValidationModal from "../../components/b2b/GstValidationModal";
+import CustomerFacingDisplay from "../../components/defaultTheme/CustomerFacingDisplay";
 import { PosProvider } from "../../context/PosContext";
 
 interface B2bBillingScreenProps {
@@ -190,49 +192,28 @@ export default function B2bBillingScreen({ onLogout }: B2bBillingScreenProps) {
         changePrintFormat={setPrintFormat}
         returnFocusRef={posLogic.scanInputRef as React.RefObject<HTMLElement>}
       />
-      <BaseModal
-        show={!!posLogic.itemToDelete}
-        onClose={() => posLogic.setItemToDelete(null)}
-        onConfirm={() => {
-          if (posLogic.itemToDelete)
-            posLogic.removeFromCart(posLogic.itemToDelete.id);
-          posLogic.setItemToDelete(null);
-        }}
-        title="Confirm Deletion"
-        theme={posLogic.theme}
-        width="400px"
-        footer={
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => posLogic.setItemToDelete(null)}
-              className="px-4 py-2 rounded-lg font-medium bg-slate-200 text-slate-800 hover:bg-slate-300 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                if (posLogic.itemToDelete)
-                  posLogic.removeFromCart(posLogic.itemToDelete.id);
-                posLogic.setItemToDelete(null);
-              }}
-              className="px-4 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
-            >
-              Delete Item
-            </button>
-          </div>
-        }
-      >
-        <p>
-          Are you sure you want to remove{" "}
-          <span className="font-bold">{posLogic.itemToDelete?.itemName}</span>{" "}
-          from the cart?
-        </p>
-      </BaseModal>
       <GstValidationModal
         show={showGstModal}
         onClose={() => setShowGstModal(false)}
         onSuccess={handleGstModalSuccess}
       />
+
+      {/* CUSTOMER FACING DISPLAY PORTAL */}
+      {posLogic.customerWindow &&
+        createPortal(
+          <CustomerFacingDisplay
+            cart={posLogic.cart}
+            totals={{
+              totalQty: posLogic.totalQty,
+              grandTotal: posLogic.grandTotal,
+              totalDiscount: posLogic.totalDiscount,
+              taxableValue: posLogic.taxableValue,
+              totalTax: posLogic.totalTax,
+            }}
+            theme={posLogic.theme}
+          />,
+          posLogic.customerWindow.document.body,
+        )}
     </PosProvider>
   );
 }

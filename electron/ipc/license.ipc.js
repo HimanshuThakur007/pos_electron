@@ -11,14 +11,24 @@ const getLicensePath = () => {
 
 ipcMain.handle("save-license", async (_, key) => {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error("Encryption is not available on this system.");
-    }
     const licenseFile = getLicensePath();
-    const encryptedKey = safeStorage.encryptString(key);
-    fs.writeFileSync(licenseFile, encryptedKey);
+    let dataToSave = key; // Fallback to plain text
+
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        dataToSave = safeStorage.encryptString(key);
+      } catch (encryptErr) {
+        console.warn(
+          "⚠️ Encryption failed (e.g., keychain denied). Saving as plain text.",
+        );
+      }
+    } else {
+      console.warn("⚠️ Encryption not available. Saving as plain text.");
+    }
+
+    fs.writeFileSync(licenseFile, dataToSave);
     updateLicenseStatus(true);
-    console.log("✅ License key saved securely.");
+    console.log("✅ License key saved.");
     return true;
   } catch (error) {
     console.error("❌ Failed to save license file:", error);
@@ -32,14 +42,24 @@ ipcMain.handle("get-license", async () => {
     if (!fs.existsSync(licenseFile)) {
       return null;
     }
-    if (!safeStorage.isEncryptionAvailable()) {
-      console.warn("⚠️ Encryption not available, cannot read license.");
-      return null;
+
+    const fileData = fs.readFileSync(licenseFile);
+
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const decryptedKey = safeStorage.decryptString(fileData);
+        console.log("✅ License key retrieved securely.");
+        return decryptedKey;
+      } catch (decryptErr) {
+        console.warn(
+          "⚠️ Decryption failed (e.g., keychain denied or plaintext). Falling back to plaintext.",
+        );
+        return fileData.toString("utf8");
+      }
     }
-    const encryptedKey = fs.readFileSync(licenseFile);
-    const decryptedKey = safeStorage.decryptString(encryptedKey);
-    console.log("✅ License key retrieved successfully.");
-    return decryptedKey;
+
+    console.warn("⚠️ Encryption not available. Reading as plain text.");
+    return fileData.toString("utf8");
   } catch (error) {
     console.error("❌ Failed to get license key:", error);
     return null;

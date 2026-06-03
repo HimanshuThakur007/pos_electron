@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import {
   getSchemesSqlite,
   getSchemesCountSqlite,
+  getSchemeAnalyticsSqlite,
 } from "../repositories/scheme.sqlite.repo.js";
 import { syncSchemesData } from "../services/sync.js";
 
@@ -11,6 +12,10 @@ ipcMain.handle("get-schemes", async () => {
 
 ipcMain.handle("get-schemes-count", async () => {
   return getSchemesCountSqlite();
+});
+
+ipcMain.handle("get-scheme-analytics", async () => {
+  return getSchemeAnalyticsSqlite();
 });
 
 ipcMain.handle("sync-schemes", async (_, isManual = true) => {

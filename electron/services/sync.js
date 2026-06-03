@@ -27,6 +27,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { app } from "electron";
+import { getLoginSession } from "../repositories/session.sqlite.repo.js";
 
 // Cache the license status to avoid repeated disk reads
 let cachedLicenseStatus = null;
@@ -296,10 +297,22 @@ export async function syncSchemesData(isManual = false) {
 
   console.log(`🔄 Starting Schemes Sync (API)... [Manual: ${isManual}]`);
 
+  let branchCode = "";
+  try {
+    const session = getLoginSession() || {};
+    branchCode = session.branch_code || "";
+  } catch (err) {
+    console.warn(
+      "Could not get branch code from session for schemes sync:",
+      err.message,
+    );
+  }
+
   try {
     const externalApiUrl = "https://market99.tech/api/reg_offer";
     const payload = {
       access_key: "78f4d7d2-86b2-418e-b78c-482fadc4605e",
+      branch_code: branchCode,
     };
 
     // Note: The native fetch API does not allow a body in a GET request.
@@ -336,11 +349,19 @@ export async function syncSchemesData(isManual = false) {
       return;
     }
 
-    createTempSchemeTableSqlite(items[0]);
-    insertSchemesBulkSqlite(items);
+    // Ensure branch_code exists on every item so it creates the column if missing from API
+    const itemsWithBranch = items.map((item) => {
+      if (!("branch_code" in item) && !("Branch_Code" in item)) {
+        return { ...item, branch_code: branchCode };
+      }
+      return item;
+    });
+
+    createTempSchemeTableSqlite(itemsWithBranch[0]);
+    insertSchemesBulkSqlite(itemsWithBranch);
     swapSchemeTablesSqlite();
 
-    const msg = `Synced ${items.length} schemes successfully from API.`;
+    const msg = `Synced ${itemsWithBranch.length} schemes successfully from API.`;
     console.log(`✅ ${msg}`);
     insertSyncLogSqlite("SUCCESS_SCHEMES", msg);
   } catch (error) {

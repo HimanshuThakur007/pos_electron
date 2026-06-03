@@ -32,7 +32,7 @@ export function useInvoiceNumber(userDetails: any, isB2B: boolean) {
           doc_type: isB2B ? 2 : 1,
         });
 
-        const currentFy = fyCode.length >= 2 ? fyCode.slice(-2) : "26";
+        const currentFy = fyCode.length >= 2 ? fyCode.slice(-2) : "";
         let localNum = 0;
         let syncedNum = 0;
 

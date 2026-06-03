@@ -1,27 +1,27 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import BaseModal from "../common/BaseModal";
-import SettingsModal from "../modals/SettingsModal";
-import ProductSelectionModal from "../modals/ProductSelectionModal";
-import PosShortcutsModal from "../modals/PosShortcutsModal";
-import Calculator from "../calculator/Calculator";
+// import BaseModal from "../../components/common/BaseModal";
+import SettingsModal from "../../components/modals/SettingsModal";
+import ProductSelectionModal from "../../components/modals/ProductSelectionModal";
+import PosShortcutsModal from "../../components/modals/PosShortcutsModal";
+import Calculator from "../../components/calculator/Calculator";
 import { usePosLogic } from "../../hooks/usePosLogic";
-import PosHeader from "./PosHeader";
-import PosActionButtons from "./PosActionButtons";
-import PosLastBillBar from "./PosLastBillBar";
-import PosCartTable from "./PosCartTable";
-import PosPaymentPanel from "./PosPaymentPanel";
-import PosFooter from "./PosFooter";
-import CustomerFacingDisplay from "./CustomerFacingDisplay";
+import PosHeader from "../../components/defaultTheme/PosHeader";
+import PosActionButtons from "../../components/defaultTheme/PosActionButtons";
+import PosLastBillBar from "../../components/defaultTheme/PosLastBillBar";
+import PosCartTable from "../../components/defaultTheme/PosCartTable";
+import PosPaymentPanel from "../../components/defaultTheme/PosPaymentPanel";
+import PosFooter from "../../components/defaultTheme/PosFooter";
+import CustomerFacingDisplay from "../../components/defaultTheme/CustomerFacingDisplay";
 // import PosPrintReceipt from "./PosPrintReceipt";
-import TransactionsModal from "../modals/TransactionsModal";
-import HeldSalesModal from "../modals/HoldSalesModal";
-import HoldNoteModal from "../modals/HoldNoteModal";
-import ReprintModal from "../modals/ReprintModal";
-import ClassicPOSLayout from "../classic/ClassicPOSLayout";
-import EndDayModal from "../modals/EndDayModal";
+import TransactionsModal from "../../components/modals/TransactionsModal";
+import HeldSalesModal from "../../components/modals/HoldSalesModal";
+import HoldNoteModal from "../../components/modals/HoldNoteModal";
+import ReprintModal from "../../components/modals/ReprintModal";
+import ClassicPOSLayout from "../../components/classicTheme/ClassicPOSLayout";
+import EndDayModal from "../../components/modals/EndDayModal";
 import "../../style/pos.css";
-import CustomerModal from "../modals/CustomerModal";
+import CustomerModal from "../../components/modals/CustomerModal";
 import toast, { Toaster } from "react-hot-toast";
 // import { PosProvider } from "../../context/PosContext";
 import { PosProvider } from "../../context/PosContext";
@@ -83,20 +83,12 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
 
       if (res?.success && res?.session) {
         setActiveSession(res.session);
-        let currentPendingCount = pendingTxCount;
         if (window.posApi && (window.posApi as any).getPendingSyncCount) {
           const count = await (window.posApi as any).getPendingSyncCount(
             fyCode,
-            { strictlyPending: true, excludeFailed: true },
+            { strictlyPending: false, excludeFailed: false },
           );
           setPendingTxCount(count);
-          currentPendingCount = count;
-        }
-        if (currentPendingCount > 0) {
-          toast.error(
-            "Please sync all pending transactions before ending the day.",
-          );
-          return;
         }
         setShowEndDayModal(true);
       } else {
@@ -293,46 +285,6 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
               scanRef={posLogic.scanInputRef}
             />
           )}
-          <BaseModal
-            show={!!posLogic.itemToDelete}
-            onClose={() => posLogic.setItemToDelete(null)}
-            onConfirm={() => {
-              if (posLogic.itemToDelete)
-                posLogic.removeFromCart(posLogic.itemToDelete.id);
-              posLogic.setItemToDelete(null);
-            }}
-            title="Confirm Deletion"
-            theme={posLogic.theme}
-            width="400px"
-            footer={
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => posLogic.setItemToDelete(null)}
-                  className="px-4 py-2 rounded-lg font-medium bg-slate-200 text-slate-800 hover:bg-slate-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (posLogic.itemToDelete)
-                      posLogic.removeFromCart(posLogic.itemToDelete.id);
-                    posLogic.setItemToDelete(null);
-                  }}
-                  className="px-4 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
-                >
-                  Delete Item
-                </button>
-              </div>
-            }
-          >
-            <p>
-              Are you sure you want to remove{" "}
-              <span className="font-bold">
-                {posLogic.itemToDelete?.itemName}
-              </span>{" "}
-              from the cart?
-            </p>
-          </BaseModal>
           <EndDayModal
             isOpen={showEndDayModal}
             userDetails={{
@@ -348,6 +300,23 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
             onEndDay={handleEndDay}
             onClose={() => setShowEndDayModal(false)}
           />
+
+          {/* CUSTOMER FACING DISPLAY PORTAL */}
+          {posLogic.customerWindow &&
+            createPortal(
+              <CustomerFacingDisplay
+                cart={posLogic.cart}
+                totals={{
+                  totalQty: posLogic.totalQty,
+                  grandTotal: posLogic.grandTotal,
+                  totalDiscount: posLogic.totalDiscount,
+                  taxableValue: posLogic.taxableValue,
+                  totalTax: posLogic.totalTax,
+                }}
+                theme={posLogic.theme}
+              />,
+              posLogic.customerWindow.document.body,
+            )}
         </>
       ) : (
         <div
@@ -386,45 +355,6 @@ export default function PosBillingScreen({ onLogout }: PosBillingScreenProps) {
             onNewSale={posLogic.handleNewSale}
             onSyncStock={handleSyncStock}
           />
-
-          {/* DELETE CONFIRM MODAL */}
-          <BaseModal
-            show={!!posLogic.itemToDelete}
-            onClose={() => posLogic.setItemToDelete(null)}
-            onConfirm={() => {
-              if (posLogic.itemToDelete)
-                posLogic.removeFromCart(posLogic.itemToDelete.id);
-              posLogic.setItemToDelete(null);
-            }}
-            title="Confirm Deletion"
-            theme={posLogic.theme}
-            width="400px"
-            footer={
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => posLogic.setItemToDelete(null)}
-                  className="px-4 py-2 rounded-lg font-medium bg-slate-200 text-slate-800 hover:bg-slate-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (posLogic.itemToDelete)
-                      posLogic.removeFromCart(posLogic.itemToDelete.id);
-                    posLogic.setItemToDelete(null);
-                  }}
-                  className="px-4 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
-                >
-                  Delete Item
-                </button>
-              </div>
-            }
-          >
-            <p>
-              Are you sure you want to remove "{posLogic.itemToDelete?.itemName}
-              " from the cart?
-            </p>
-          </BaseModal>
 
           {/* MAIN CONTENT */}
           <div className="flex-1 flex flex-col w-full overflow-hidden p-2">

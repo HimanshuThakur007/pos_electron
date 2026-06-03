@@ -41,7 +41,7 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 0.5rem;
   font-weight: var(--headings-font-weight);
   line-height: 1.2;
-  color: var(--headings-color);
+  /* color: var(--headings-color); */
 }
 
 h1 { font-size: 2.5rem; }

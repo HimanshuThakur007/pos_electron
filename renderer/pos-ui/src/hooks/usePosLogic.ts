@@ -8,6 +8,7 @@ import { useUserDetails } from "./useUserDetails";
 import { useSystemState } from "./useSystemState";
 import { useCustomerDisplay } from "./useCustomerDisplay";
 import { useAuth } from "../context/AuthContext";
+import { showDialog } from "../components/common/GlobalAlert";
 
 interface PosLogicOptions {
   isB2B?: boolean;
@@ -34,6 +35,7 @@ export function usePosLogic(onLogout?: () => void, options?: PosLogicOptions) {
     theme,
     toggleTheme,
     syncStatus,
+    syncMetrics,
     manualMode,
     setManualMode,
     currentTime,
@@ -185,6 +187,24 @@ export function usePosLogic(onLogout?: () => void, options?: PosLogicOptions) {
     handleOpenPayment,
   });
 
+  // Automatically trigger the Global Alert confirmation when an item is targeted for deletion
+  useEffect(() => {
+    if (itemToDelete) {
+      showDialog(
+        `Are you sure you want to remove "${itemToDelete.itemName}" from the cart?`,
+        "warning",
+        "Confirm Deletion",
+        () => setItemToDelete(null), // Triggers on Cancel or Escape
+        () => {
+          removeFromCart(itemToDelete.id);
+          setItemToDelete(null);
+        }, // Triggers on Confirm or Enter
+        "Delete Item",
+        "Cancel",
+      );
+    }
+  }, [itemToDelete, removeFromCart]);
+
   return {
     searchTerm,
     setSearchTerm,
@@ -217,6 +237,7 @@ export function usePosLogic(onLogout?: () => void, options?: PosLogicOptions) {
     isServerOnline,
     isNetworkOnline,
     syncStatus,
+    syncMetrics,
     netOffline: !isOnline,
     manualMode,
     setManualMode,

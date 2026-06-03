@@ -1,6 +1,6 @@
 import { useMemo, useCallback, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import PosPrintReceipt from "../components/pos/PosPrintReceipt";
+import PosPrintReceipt from "../components/defaultTheme/PosPrintReceipt";
 import toast from "react-hot-toast";
 
 export function usePosPrinting(

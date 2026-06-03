@@ -6,7 +6,10 @@ import {
   UploadCloud,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Loader2,
 } from "lucide-react";
+import ComparisonDataViewer from "./ComparisonDataViewer";
 
 const formatDateTimeIST = (
   dateStr: string | number | Date | null | undefined,
@@ -136,7 +139,8 @@ type TabType =
   | "b2bSync"
   | "invoiceSeries"
   | "stocks"
-  | "schemes";
+  | "schemes"
+  | "comparisonData";
 
 interface DataViewerProps {
   activeTab: TabType;
@@ -147,7 +151,8 @@ interface DataViewerProps {
   searchTerm: string;
   onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   searchPlaceholder: string;
-  onExport: () => void;
+  onExport?: () => void;
+  onSecureExport?: () => void | Promise<void>;
   isLoading: boolean;
   isSearching: boolean;
   colSpan: number;
@@ -163,7 +168,7 @@ const Th: React.FC<{ children: React.ReactNode; className?: string }> = ({
   className = "",
 }) => (
   <th
-    className={`px-4 py-3 font-semibold text-[11px] uppercase tracking-widest text-slate-500 whitespace-nowrap bg-slate-50/95 backdrop-blur-sm sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0] ${className}`}
+    className={`px-4 py-3 font-semibold text-[11px] uppercase tracking-widest text-slate-500 whitespace-nowrap bg-slate-50 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0] ${className}`}
   >
     {children}
   </th>
@@ -184,6 +189,7 @@ export default function DataViewer({
   onSearchChange,
   searchPlaceholder,
   onExport,
+  onSecureExport,
   isLoading,
   isSearching,
   colSpan,
@@ -193,6 +199,18 @@ export default function DataViewer({
   isSyncing,
   onTriggerInvoiceSync,
 }: DataViewerProps) {
+  const [isExportingAdmin, setIsExportingAdmin] = React.useState(false);
+
+  const handleAdminExport = async () => {
+    if (!onSecureExport) return;
+    setIsExportingAdmin(true);
+    try {
+      await onSecureExport();
+    } finally {
+      setIsExportingAdmin(false);
+    }
+  };
+
   const isBillTab = activeTab === "retailBills" || activeTab === "b2bBills";
   const isSyncTab = activeTab === "retailSync" || activeTab === "b2bSync";
   const isDynamicTab = activeTab === "stocks" || activeTab === "schemes";
@@ -369,58 +387,89 @@ export default function DataViewer({
 
   return (
     <div className="px-4 pt-4 pb-4 flex-1 overflow-hidden flex flex-col">
-      <div className="flex items-center gap-3 mb-3 shrink-0">
-        <div className="flex-1">
-          <SearchInput
-            value={searchTerm}
-            onChange={onSearchChange}
-            placeholder={searchPlaceholder}
-          />
+      {activeTab !== "comparisonData" && (
+        <div className="flex items-center gap-3 mb-3 shrink-0">
+          <div className="flex-1">
+            <SearchInput
+              value={searchTerm}
+              onChange={onSearchChange}
+              placeholder={searchPlaceholder}
+            />
+          </div>
+          {onSecureExport && (
+            <button
+              onClick={handleAdminExport}
+              disabled={isExportingAdmin}
+              className="flex items-center gap-2 h-10 px-4 rounded-xl bg-slate-800 text-white font-medium hover:bg-slate-700 disabled:opacity-70 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
+              title="Export Encrypted Backup for Admin"
+            >
+              {isExportingAdmin ? (
+                <Loader2 size={16} className="text-slate-300 animate-spin" />
+              ) : (
+                <Lock size={16} className="text-slate-300" />
+              )}
+              <span className="hidden sm:inline">
+                {isExportingAdmin ? "Exporting..." : "Admin Export"}
+              </span>
+            </button>
+          )}
+          {onExport && (
+            <button
+              onClick={onExport}
+              className="flex items-center gap-2 h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors shadow-sm shrink-0"
+            >
+              <Download size={16} />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          )}
         </div>
-        <button
-          onClick={onExport}
-          className="flex items-center gap-2 h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors shadow-sm shrink-0"
-        >
-          <Download size={16} />
-          <span className="hidden sm:inline">Export</span>
-        </button>
-      </div>
+      )}
       <div className="flex-1 overflow-auto rounded-xl border border-slate-200/80 bg-white">
-        <table className="w-full text-left border-separate border-spacing-0">
-          <thead>{renderTableHeader()}</thead>
-          <tbody>
-            {isLoading || isSearching ? (
-              <tr>
-                <td
-                  colSpan={colSpan}
-                  className="px-3 py-4 text-center text-slate-500 font-medium"
-                >
-                  {isSearching
-                    ? "Searching..."
-                    : "Loading data, please wait..."}
-                </td>
-              </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={colSpan}
-                  className="px-3 py-4 text-center text-slate-500"
-                >
-                  No data found.
-                </td>
-              </tr>
-            ) : (
-              data.map(renderTableRow)
-            )}
-          </tbody>
-        </table>
+        {activeTab === "comparisonData" ? (
+          <ComparisonDataViewer
+            data={data}
+            isLoading={isLoading}
+            isSearching={isSearching}
+          />
+        ) : (
+          <table className="w-full text-left border-separate border-spacing-0">
+            <thead>{renderTableHeader()}</thead>
+            <tbody>
+              {isLoading || isSearching ? (
+                <tr>
+                  <td
+                    colSpan={colSpan}
+                    className="px-3 py-4 text-center text-slate-500 font-medium"
+                  >
+                    {isSearching
+                      ? "Searching..."
+                      : "Loading data, please wait..."}
+                  </td>
+                </tr>
+              ) : data.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={colSpan}
+                    className="px-3 py-4 text-center text-slate-500"
+                  >
+                    No data found.
+                  </td>
+                </tr>
+              ) : (
+                data.map(renderTableRow)
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
-      <Pagination
-        currentPage={pagination.currentPage}
-        total={total}
-        limit={pagination.limit}
-        onPageChange={onPageChange}
-      />
+      {activeTab !== "comparisonData" && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          total={total}
+          limit={pagination.limit}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   );
 }

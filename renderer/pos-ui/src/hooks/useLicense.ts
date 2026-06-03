@@ -48,10 +48,20 @@ export function useLicense() {
     let isMounted = true;
 
     const checkLocalLicense = async () => {
+      // Avoid re-validating the license multiple times in the same session (e.g., upon logout)
+      if (sessionStorage.getItem("license_validated") === "true") {
+        if (isMounted) setIsLicensed(true);
+        return;
+      }
+
       let storedKey = null;
-      if ((window as any).posApi && (window as any).posApi.getLicense) {
-        storedKey = await (window as any).posApi.getLicense();
-        console.log("Stored license key found:", storedKey);
+      try {
+        if ((window as any).posApi && (window as any).posApi.getLicense) {
+          storedKey = await (window as any).posApi.getLicense();
+          console.log("Stored license key found:", storedKey);
+        }
+      } catch (err) {
+        console.error("Failed to get license from local storage:", err);
       }
 
       if (!storedKey) {
@@ -59,9 +69,26 @@ export function useLicense() {
         return;
       }
 
-      // Trust the local license key to prevent unnecessary API calls,
-      // especially when the Login component mounts during logout.
-      if (isMounted) setIsLicensed(true);
+      try {
+        let deviceId = "UNKNOWN_DEVICE";
+        if ((window as any).posApi && (window as any).posApi.getDeviceId) {
+          deviceId = await (window as any).posApi.getDeviceId();
+        }
+
+        const result = await validateLicenseApi(storedKey, deviceId, post);
+
+        if (!result.valid && !result.isNetworkError) {
+          if ((window as any).posApi && (window as any).posApi.removeLicense) {
+            await (window as any).posApi.removeLicense();
+          }
+          if (isMounted) setIsLicensed(false);
+        } else {
+          if (result.valid) sessionStorage.setItem("license_validated", "true");
+          if (isMounted) setIsLicensed(true);
+        }
+      } catch (error) {
+        if (isMounted) setIsLicensed(true);
+      }
     };
 
     checkLocalLicense();
@@ -88,6 +115,7 @@ export function useLicense() {
           await (window as any).posApi.saveLicense(key);
         }
 
+        sessionStorage.setItem("license_validated", "true");
         setIsLicensed(true);
         toast.success(result.message);
         return true;

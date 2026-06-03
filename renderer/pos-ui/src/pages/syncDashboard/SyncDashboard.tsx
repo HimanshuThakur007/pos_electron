@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Store, Tag, Database } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-import DashboardHeader from "./DashboardHeader";
-import SyncCardsGrid from "./SyncCardsGrid";
-import DashboardTabs from "./DashboardTabs";
-import DataViewer from "./DataViewer";
-import { useAuth } from "../../context/AuthContext";
+import SyncCardsGrid from "../../components/syncDash/SyncCardsGrid";
+import DashboardTabs from "../../components/syncDash/DashboardTabs";
+import DataViewer from "../../components/syncDash/DataViewer";
+// import { useAuth } from "../../context/AuthContext";
+// import { showDialog } from "../../components/common/GlobalAlert";
+import { HeaderPropsContext } from "../../context/HeaderContext";
+import Chatbot from "../../components/common/Chatbot";
 
 const formatDateTimeIST = (
   dateStr: string | number | Date | null | undefined,
@@ -40,7 +42,8 @@ type TabType =
   | "b2bSync"
   | "invoiceSeries"
   | "stocks"
-  | "schemes";
+  | "schemes"
+  | "comparisonData";
 
 interface SyncDashboardProps {
   onLogout?: () => void;
@@ -50,14 +53,11 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
   const navigate = useNavigate();
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [time, setTime] = useState(new Date());
-  const branchName = localStorage.getItem("branch_name") || "Market99";
-  const finYear = localStorage.getItem("fin_year") || "01";
-  const userName = localStorage.getItem("user_name") || "Cashier";
 
-  const { isServerOnline, isNetworkOnline } = useAuth();
+  // const { isServerOnline, isNetworkOnline } = useAuth();
+  const headerContext = useContext(HeaderPropsContext);
 
-  const [activeTab, setActiveTab] = useState<TabType>("retailBills");
+  const [activeTab, setActiveTab] = useState<TabType>("comparisonData");
   const [fullData, setFullData] = useState({
     branchesTotal: 0,
     schemesTotal: 0,
@@ -67,9 +67,12 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     invoiceSeries: [] as any[],
     stocks: [] as any[],
     schemes: [] as any[],
+    schemeAnalytics: null as any,
+    itemAnalytics: null as any,
   });
   const colSpan = useMemo(() => {
     if (activeTab === "invoiceSeries") return 8;
+    if (activeTab === "comparisonData") return 2;
     if (activeTab === "stocks") {
       return fullData.stocks && fullData.stocks.length > 0
         ? Object.keys(fullData.stocks[0]).length
@@ -83,6 +86,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     // transactions and syncTracker (after removing attempts) have 5 columns
     return 5;
   }, [activeTab, fullData.stocks, fullData.schemes]);
+
   const stockKeys = useMemo(() => {
     if (
       activeTab === "stocks" &&
@@ -93,6 +97,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     }
     return ["Item_Name", "LogicUserCode", "Lot_MRP", "Stock_Qty"];
   }, [activeTab, fullData.stocks]);
+
   const schemeKeys = useMemo(() => {
     if (
       activeTab === "schemes" &&
@@ -103,6 +108,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     }
     return ["schm_camp_grp", "description", "start_date", "end_date"];
   }, [activeTab, fullData.schemes]);
+
   const [isLoadingData, setIsLoadingData] = useState(false);
   const branchCode = localStorage.getItem("branch_code") || "";
   const fyCode = localStorage.getItem("fy_code") || "";
@@ -123,6 +129,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     invoiceSeries: { currentPage: 1, limit: 15 },
     stocks: { currentPage: 1, limit: 15 },
     schemes: { currentPage: 1, limit: 15 },
+    comparisonData: { currentPage: 1, limit: 15 },
   });
   const [searchTerms, setSearchTerms] = useState<Record<TabType, string>>({
     retailBills: "",
@@ -132,6 +139,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     invoiceSeries: "",
     stocks: "",
     schemes: "",
+    comparisonData: "",
   });
   const [debouncedSearchTerms, setDebouncedSearchTerms] = useState(searchTerms);
 
@@ -155,16 +163,22 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     handlePageChange(tab, 1);
   };
 
+  const handleLogoutClick = useCallback(async () => {
+    if (onLogout) onLogout();
+  }, [onLogout]);
+
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (headerContext) {
+      headerContext.setHeaderProps({});
+    }
+    return () => headerContext?.setHeaderProps({});
+  }, [headerContext]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F10" && onLogout) {
+      if (e.key === "F10") {
         e.preventDefault();
-        onLogout();
+        handleLogoutClick();
       }
       if (e.key === "Escape" && !document.querySelector('[role="dialog"]')) {
         navigate("/");
@@ -172,7 +186,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
+  }, [navigate, handleLogoutClick]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -186,6 +200,8 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
           stockCount,
           transactionsRes,
           invoiceSeriesRes,
+          schemeAnalyticsRes,
+          itemAnalyticsRes,
         ] = await Promise.all([
           (window.posApi as any).getBranchesCount?.() || 0,
           (window.posApi as any).getSchemesCount?.() || 0,
@@ -196,6 +212,8 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
             fy_code: fyCode,
           }),
           (window.posApi as any).getAllInvoiceSeries?.(fyCode) || [],
+          (window.posApi as any).getSchemeAnalytics?.() || null,
+          (window.posApi as any).getItemAnalytics?.() || null,
         ]);
 
         const sortedTransactions = (transactionsRes || []).sort(
@@ -214,6 +232,8 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
           stockTotal: stockCount,
           transactions: sortedTransactions,
           invoiceSeries: invoiceSeriesRes,
+          schemeAnalytics: schemeAnalyticsRes,
+          itemAnalytics: itemAnalyticsRes,
         }));
       } catch (error) {
         console.error(`Error fetching data:`, error);
@@ -271,11 +291,44 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
         }
       };
       fetchSchemes();
+    } else if (
+      activeTab === "comparisonData" &&
+      (!fullData.schemeAnalytics || !fullData.itemAnalytics)
+    ) {
+      const fetchComparison = async () => {
+        setIsLoadingData(true);
+        try {
+          let res = null;
+          let itemRes = null;
+          if (window.posApi && (window.posApi as any).getSchemeAnalytics) {
+            res = await (window.posApi as any).getSchemeAnalytics();
+            itemRes =
+              (await (window.posApi as any).getItemAnalytics?.()) || null;
+          }
+          setFullData((prev) => ({
+            ...prev,
+            schemeAnalytics: res,
+            itemAnalytics: itemRes,
+          }));
+        } catch (err) {
+          console.error("Failed to fetch comparison data:", err);
+        } finally {
+          setIsLoadingData(false);
+        }
+      };
+      fetchComparison();
     }
-  }, [activeTab, fullData.stocks.length, fullData.schemes.length]);
+  }, [
+    activeTab,
+    fullData.stocks.length,
+    fullData.schemes.length,
+    fullData.schemeAnalytics,
+    fullData.itemAnalytics,
+  ]);
 
   const handleReprint = async (bill: any) => {
     try {
+      const userName = localStorage.getItem("user_name") || "Cashier";
       let storeDetails = {
         name: "MARKET NINETY NINE PVT LTD.",
         address: "Pacific Mall, Jasola, New Delhi",
@@ -367,7 +420,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
 
   const activeData = useMemo(() => {
     let data: any[] = [];
-    const term = debouncedSearchTerms[activeTab].toLowerCase();
+    const term = debouncedSearchTerms[activeTab]?.toLowerCase() || "";
 
     if (activeTab === "retailBills" || activeTab === "b2bBills") {
       const isB2BTab = activeTab === "b2bBills";
@@ -387,6 +440,54 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
       data = fullData.stocks || [];
     } else if (activeTab === "schemes") {
       data = fullData.schemes || [];
+    } else if (activeTab === "comparisonData") {
+      if (fullData.schemeAnalytics) {
+        const {
+          totalSchemes,
+          totalAppliedItems,
+          schemeTypeWiseCount,
+          totalSchemeTypeWiseCount,
+          groupNameWiseCount,
+          appliedGroupNameWiseCount,
+        } = fullData.schemeAnalytics;
+        // console.log("analytics", groupNameWiseCount);
+        data = [
+          { Metric: "Total Schemes", Count: totalSchemes || 0 },
+          {
+            Metric: "Total Schemes (API)",
+            Count: fullData.schemeAnalytics?.apiCount || 0,
+          },
+          {
+            Metric: "Total Schemes (Local DB)",
+            Count: fullData.schemeAnalytics?.localDbCount || 0,
+          },
+          ...(totalSchemeTypeWiseCount || []).map((x: any) => ({
+            Metric: `Total Scheme Type: ${x.schm_type_label || x.schm_type}`,
+            Count: x.count,
+          })),
+          { Metric: "Total Applied Items", Count: totalAppliedItems || 0 },
+          ...(schemeTypeWiseCount || []).map((x: any) => ({
+            Metric: `Applied Scheme Type: ${x.schm_type_label || x.schm_type}`,
+            Count: x.count,
+          })),
+          ...(groupNameWiseCount || []).map((x: any) => ({
+            Metric: `Total Group Name: ${x.group_name}`,
+            Count: x.count,
+          })),
+          ...(appliedGroupNameWiseCount || []).map((x: any) => ({
+            Metric: `Applied Group Name: ${x.group_name}`,
+            Count: x.count,
+          })),
+          {
+            Metric: "Total Items (API)",
+            Count: fullData.itemAnalytics?.apiCount || 0,
+          },
+          {
+            Metric: "Total Items (Local DB)",
+            Count: fullData.itemAnalytics?.localDbCount || 0,
+          },
+        ];
+      }
     }
 
     if (term) {
@@ -405,6 +506,11 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
 
   const activeView = useMemo(() => {
     const total = activeData.length;
+
+    if (activeTab === "comparisonData") {
+      return { data: activeData, total };
+    }
+
     const { currentPage, limit } = paginationState[activeTab];
     const paginatedData = activeData.slice(
       (currentPage - 1) * limit,
@@ -418,17 +524,25 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     searchTerms[activeTab] !== debouncedSearchTerms[activeTab];
 
   const handleExport = () => {
-    if (!activeData || activeData.length === 0) {
+    const dataToExport = activeData;
+    console.log("export data length", dataToExport.length);
+    if (!dataToExport || dataToExport.length === 0) {
       toast.error("No data to export");
       return;
     }
 
-    const headers = Object.keys(activeData[0]);
+    const headers = Object.keys(dataToExport[0]);
     const headerRow = headers
-      .map((key) => `"${key.replace(/_/g, " ").toUpperCase()}"`)
+      .map((key) => {
+        const label = key.replace(/_/g, " ").toUpperCase();
+        if (label.includes(",") || label.includes('"')) {
+          return `"${label.replace(/"/g, '""')}"`;
+        }
+        return label;
+      })
       .join(",");
 
-    const csvRows = activeData.map((row) => {
+    const csvRows = dataToExport.map((row) => {
       return headers
         .map((key) => {
           let val = row[key];
@@ -447,7 +561,6 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
               key.toLowerCase().includes("_at"))
           ) {
             strVal = formatDateTimeIST(strVal);
-            strVal = `\t${strVal}`; // Prepended tab forces Excel to treat it as text
           }
           // Prevent Excel from removing leading zeros or using scientific notation
           else if (
@@ -458,12 +571,18 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
               key.toLowerCase().includes("no") ||
               /^\d{10,}$/.test(strVal))
           ) {
-            strVal = `\t${strVal}`;
+            strVal = `${strVal}\t`;
           }
 
-          // Escape quotes and wrap in quotes to handle commas safely for Excel
-          strVal = strVal.replace(/"/g, '""');
-          return `"${strVal}"`;
+          // Only wrap in quotes if the value contains a comma, double-quote, or newline
+          if (
+            strVal.includes(",") ||
+            strVal.includes('"') ||
+            strVal.includes("\n")
+          ) {
+            strVal = `"${strVal.replace(/"/g, '""')}"`;
+          }
+          return strVal;
         })
         .join(",");
     });
@@ -477,16 +596,75 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const dateStr = new Date().toISOString().split("T")[0];
+    const tabPrefix =
+      activeTab === "retailBills" || activeTab === "retailSync"
+        ? "saleBilling"
+        : activeTab === "b2bBills" || activeTab === "b2bSync"
+          ? "b2bSaleBill"
+          : activeTab;
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
       // `${activeTab}_export_${new Date().getTime()}.csv`,
-      `${activeTab}_export_${dateStr}.csv`,
+      `${tabPrefix}_export_${dateStr}.csv`,
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     toast.success("Exported successfully!");
+  };
+
+  const handleSecureExport = async () => {
+    if (!activeData || activeData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const toastId = toast.loading("Generating secure backup for Admin...");
+
+    // Yield the main thread briefly so the UI can render the loader before the thread freezes
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Generate dynamic password: branchCode_userId_last2digitsOfFyCode
+    const user_uid = localStorage.getItem("user_uid") || "";
+    const fyLast2 = fyCode.slice(-2);
+    const password = `${branchCode}${user_uid}${fyLast2}`;
+
+    // Convert the data array directly to a formatted JSON string
+    const jsonString = JSON.stringify(activeData, null, 2);
+
+    // const dateStr = new Date().toISOString().split("T")[0];
+    const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+    const tabPrefix =
+      activeTab === "retailBills" || activeTab === "retailSync"
+        ? "saleBilling"
+        : activeTab === "b2bBills" || activeTab === "b2bSync"
+          ? "b2bSaleBill"
+          : activeTab;
+    // const fileName = `${tabPrefix}_secure_backup_${dateStr}.html`;
+    const fileName = `${tabPrefix}_secure_backup_${branchCode}${dateStr}${user_uid}${fyLast2}.html`;
+    if (window.posApi && (window.posApi as any).exportSecureBackup) {
+      try {
+        const res = await (window.posApi as any).exportSecureBackup({
+          jsonString,
+          password,
+          fileName,
+        });
+        if (res.canceled) return toast.dismiss(toastId);
+
+        if (res.success) {
+          toast.success(`Secure backup saved to: ${res.filePath}`, {
+            id: toastId,
+          });
+        } else {
+          toast.error("Failed to save backup: " + res.error, { id: toastId });
+        }
+      } catch (e: any) {
+        toast.error("Error: " + e.message, { id: toastId });
+      }
+    } else {
+      toast.dismiss(toastId);
+    }
   };
 
   const updateSyncDate = (key: string, stateKey: string) => {
@@ -594,16 +772,13 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
   ];
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col font-sans overflow-hidden relative">
+    <div className="h-full bg-slate-50 flex flex-col font-sans overflow-hidden relative">
       <Toaster position="top-center" />
-      {/* Ambient Background Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
 
       {/* Full Screen Loading Overlay */}
       {isSyncing && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-          <div className="bg-white px-8 py-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/80">
+          <div className="bg-white px-8 py-6 rounded-2xl shadow-lg flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             <div className="text-center">
               <div className="text-base font-bold text-slate-800">
@@ -616,17 +791,6 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
           </div>
         </div>
       )}
-
-      <DashboardHeader
-        onLogout={onLogout}
-        branchName={branchName}
-        branchCode={branchCode}
-        userName={userName}
-        finYear={finYear}
-        time={time}
-        isServerOnline={isServerOnline}
-        isNetworkOnline={isNetworkOnline}
-      />
 
       <main className="flex-1 flex flex-col px-4 py-3 w-full min-h-0 z-10">
         {/* SYNC CARDS */}
@@ -649,11 +813,26 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
               handleSearchChange(activeTab, e.target.value)
             }
             searchPlaceholder="Search by any column value..."
-            onExport={handleExport}
+            onExport={
+              activeTab === "stocks" || activeTab === "schemes"
+                ? handleExport
+                : undefined
+            }
+            onSecureExport={
+              activeTab === "retailSync" || activeTab === "b2bSync"
+                ? handleSecureExport
+                : undefined
+            }
             isLoading={isLoadingData}
             isSearching={isSearching}
             colSpan={colSpan}
-            dynamicKeys={activeTab === "stocks" ? stockKeys : schemeKeys}
+            dynamicKeys={
+              activeTab === "stocks"
+                ? stockKeys
+                : activeTab === "comparisonData"
+                  ? ["Metric", "Count"]
+                  : schemeKeys
+            }
             onReprint={handleReprint}
             onManualSync={handleManualSync}
             isSyncing={isSyncing}
@@ -678,6 +857,7 @@ export default function SyncDashboard({ onLogout }: SyncDashboardProps) {
           />
         </div>
       </main>
+      <Chatbot />
     </div>
   );
 }

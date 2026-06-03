@@ -1,15 +1,30 @@
 import { useState } from "react";
-import { Routes, Route, Navigate, useNavigate, Outlet } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
-import Login from "./components/auth/Login";
-import Home from "./Home";
-import PosBillingScreen from "./components/pos/PosBillingScreen";
-// import SessionWatcher from "./components/auth/SessionWatcher";
-import GlobalAlert from "./components/common/GlobalAlert";
-import MainMenu from "./components/common/MainMenu";
+import Login from "./pages/auth/Login";
+import PosBillingScreen from "./pages/saleBilling/PosBillingScreen";
+import GlobalAlert, { showDialog } from "./components/common/GlobalAlert";
+import MainMenu from "./pages/mainMenuDash/MainMenu";
 import { useAuth } from "./context/AuthContext";
-import B2bBillingScreen from "./components/b2b/B2bBillingScreen";
-import SyncDashboard from "./components/syncDash/SyncDashboard";
+import B2bBillingScreen from "./pages/b2bBilling/B2bBillingScreen";
+import SyncDashboard from "./pages/syncDashboard/SyncDashboard";
+import MainLayout from "./pages/layout/MainLayout";
+
+// Reusable Placeholder View for WIP Routes
+const PlaceholderView = ({ title }: { title: string }) => {
+  const navigate = useNavigate();
+  return (
+    <div className="p-10 flex flex-col items-center">
+      <button
+        onClick={() => navigate("/")}
+        className="self-start mb-6 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition font-medium"
+      >
+        &larr; Back to Menu
+      </button>
+      <div className="text-xl font-bold mt-10">{title} Coming Soon...</div>
+    </div>
+  );
+};
 
 function App() {
   const { isAuthenticated, logout, isLoading } = useAuth();
@@ -17,6 +32,29 @@ function App() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    // Check for pending transactions before allowing logout
+    const fyCode = localStorage.getItem("fy_code") || "";
+    if (window.posApi && (window.posApi as any).getPendingSyncCount) {
+      try {
+        const currentPendingCount = await (
+          window.posApi as any
+        ).getPendingSyncCount(fyCode, {
+          strictlyPending: false, // Include actively syncing transactions
+          excludeFailed: false, // Include failed transactions
+        });
+        if (currentPendingCount > 0) {
+          showDialog(
+            `Cannot log out. ${currentPendingCount} transaction(s) have not been synced.`,
+            "error",
+            "Logout Restricted",
+          );
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to check pending transactions:", error);
+      }
+    }
+
     setIsLoggingOut(true);
     try {
       await logout();
@@ -69,7 +107,6 @@ function App() {
   return (
     <>
       <GlobalAlert />
-      {/* {isAuthenticated && <SessionWatcher />} */}
 
       {isLoggingOut && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
@@ -92,7 +129,11 @@ function App() {
         {/* Protected Routes */}
         <Route
           element={
-            isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
           }
         >
           {/* Main Menu Route */}
@@ -104,81 +145,30 @@ function App() {
             element={<PosBillingScreen onLogout={handleLogout} />}
           />
 
-          {/* Dashboard / Home Route */}
-          <Route
-            path="/home"
-            element={
-              <Home
-                onLogout={handleLogout}
-                onOpenPos={() => navigate("/pos")}
-              />
-            }
-          />
-
           {/* Sync Dashboard Route */}
           <Route
             path="/sync-dashboard"
             element={<SyncDashboard onLogout={handleLogout} />}
           />
 
-          {/* Sale Return Component Route (Placeholder) */}
           <Route
             path="/sale-return"
-            element={
-              <div className="p-10 flex flex-col items-center">
-                <button
-                  onClick={() => navigate("/")}
-                  className="self-start mb-6 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition font-medium"
-                >
-                  &larr; Back to Menu
-                </button>
-                <div className="text-xl font-bold mt-10">
-                  Sale Return Coming Soon...
-                </div>
-              </div>
-            }
+            element={<PlaceholderView title="Sale Return" />}
           />
 
-          {/* B2B Sale Component Route (Placeholder) */}
           <Route
             path="/b2b-sale"
             element={<B2bBillingScreen onLogout={handleLogout} />}
           />
 
-          {/* Exchange Component Route (Placeholder) */}
           <Route
             path="/exchange"
-            element={
-              <div className="p-10 flex flex-col items-center">
-                <button
-                  onClick={() => navigate("/")}
-                  className="self-start mb-6 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition font-medium"
-                >
-                  &larr; Back to Menu
-                </button>
-                <div className="text-xl font-bold mt-10">
-                  Exchange Coming Soon...
-                </div>
-              </div>
-            }
+            element={<PlaceholderView title="Exchange" />}
           />
 
-          {/* Stock Transfer Component Route (Placeholder) */}
           <Route
             path="/stock-transfer"
-            element={
-              <div className="p-10 flex flex-col items-center">
-                <button
-                  onClick={() => navigate("/")}
-                  className="self-start mb-6 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition font-medium"
-                >
-                  &larr; Back to Menu
-                </button>
-                <div className="text-xl font-bold mt-10">
-                  Stock Transfer Coming Soon...
-                </div>
-              </div>
-            }
+            element={<PlaceholderView title="Stock Transfer" />}
           />
         </Route>
 

@@ -170,13 +170,14 @@ async function runSync() {
             const result = await response.json().catch(() => null);
             console.log("📡 Close Shift API Response (Error):", result);
             if (
-              result &&
-              result.message &&
-              result.message.toLowerCase().includes("already closed")
+              response.status === 404 ||
+              (result &&
+                result.message &&
+                result.message.toLowerCase().includes("already closed"))
             ) {
               markTerminalSessionFullySynced(shift.id);
               console.log(
-                `✅ Shift Close Sync Recovered (already closed) for local ID: ${shift.id}`,
+                `✅ Shift Close Sync Recovered (already closed or not found) for local ID: ${shift.id}`,
               );
             } else {
               console.error(

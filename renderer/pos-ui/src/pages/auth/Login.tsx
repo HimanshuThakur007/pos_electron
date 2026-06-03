@@ -10,13 +10,23 @@ import {
 } from "react-icons/md";
 import { useApi } from "../../hooks/useApi";
 import toast, { Toaster } from "react-hot-toast";
-import { useLicense, validateLicenseApi } from "../../hooks/useLicense";
-import LicenseScreen from "./LicenseScreen";
+import { useLicense } from "../../hooks/useLicense";
+import LicenseScreen from "../../components/auth/LicenseScreen";
 import { useAuth } from "../../context/AuthContext";
-import { ConflictModal, type ConflictInfo } from "./ConflictModal";
-import { OtpModal } from "./OtpModal";
-import { CheckingLicenseOverlay, LoadingOverlay } from "./LoginOverlays";
-import { BrandPanel, LoginHeader, LoginFooter } from "./LoginPanels";
+import {
+  ConflictModal,
+  type ConflictInfo,
+} from "../../components/modals/ConflictModal";
+import { OtpModal } from "../../components/modals/OtpModal";
+import {
+  CheckingLicenseOverlay,
+  LoadingOverlay,
+} from "../../components/auth/LoginOverlays";
+import {
+  BrandPanel,
+  LoginHeader,
+  LoginFooter,
+} from "../../components/auth/LoginPanels";
 
 interface FinancialYear {
   id: number;
@@ -230,6 +240,7 @@ export default function Login() {
     localStorage.setItem("user_id", String(payload.user?.id || ""));
     localStorage.setItem("user_role", payload.user?.role?.name || "");
     localStorage.setItem("branch_code", currentBranchCode || "");
+    localStorage.setItem("user_uid", payload?.user?.user_uid || "");
     // localStorage.setItem("branch_name", payload.user?.branch?.accnt_name || "");
     localStorage.setItem(
       "branch_name",
@@ -364,24 +375,6 @@ export default function Login() {
       let deviceUid = "";
       if (posApi && posApi.getDeviceId) {
         deviceUid = await posApi.getDeviceId();
-      }
-
-      // VALIDATE LICENSE
-      if (posApi && posApi.getLicense) {
-        setLoadingMessage("Validating License...");
-        const storedKey = await posApi.getLicense();
-        if (storedKey) {
-          const result = await validateLicenseApi(storedKey, deviceUid, post);
-          if (!result.valid && !result.isNetworkError) {
-            toast.error(result.message);
-            if (posApi.removeLicense) {
-              await posApi.removeLicense();
-            }
-            setIsLoading(false);
-            setTimeout(() => window.location.reload(), 2000);
-            return;
-          }
-        }
       }
 
       setLoadingMessage("Signing in...");

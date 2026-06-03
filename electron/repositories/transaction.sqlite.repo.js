@@ -257,7 +257,7 @@ export const insertTransactionSqlite = (data) => {
   const MPM = getMpmTableName(fy_code);
 
   const dateObj = new Date();
-  const month_range = `${dateObj.getFullYear()}_${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
+  const month_range = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
   const hour = dateObj.getHours();
   const hour_range = `${String(hour).padStart(2, "0")}-${String(hour + 1).padStart(2, "0")}`;
   const fin_year = data.fin_year || String(fy_code);
@@ -472,7 +472,7 @@ export const insertSyncedTransactionSqlite = (data) => {
   const MPM = getMpmTableName(fy_code);
 
   const dateObj = data.time ? new Date(data.time) : new Date();
-  const month_range = `${dateObj.getFullYear()}_${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
+  const month_range = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
   const hour = dateObj.getHours();
   const hour_range = `${String(hour).padStart(2, "0")}-${String(hour + 1).padStart(2, "0")}`;
   const fin_year = data.fin_year || String(fy_code);
